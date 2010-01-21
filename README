@@ -24,10 +24,10 @@ have all four walls open.  There are other structures which cannot
 exist, such as two parallel tunnels with a door between them in the
 middle.
 
-Nevertheless, this algorithm is popular for its simplicity.  In this
-instance, I have "unrolled" the recursive algorithm and basically
-perform the recursion the hard way.  On a normal maze of 100x75, the
-stack typically overflows in some browsers.
+Nevertheless, this algorithm is popular for its simplicity.  However, on
+a normal maze of 100x75, the stack typically overflows in some browsers.
+Even in Firefox you will sometimes see a stack overflow if the maze gets
+too deep.
 
 It's possible to alter the look of these mazes by changing the chances
 involved with the algorithm determining the order in which the various
