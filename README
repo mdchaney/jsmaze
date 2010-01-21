@@ -1,0 +1,66 @@
+These are maze generators written in JavaScript.  This includes three
+different algorithms: standard recursive, drunk walk, and drunk walk
+walls.
+
+All three accept xsize and ysize parameters as part of the url, i.e.
+file:///Users/mdchaney/mazes/jsmaze1.html?xsize=100&ysize=75
+
+The mazes fill in with a color that ranges from bright blue to black
+depending on the distance of the square from the entrance.  Note that
+because we have the entrance and exits fixed at the corners, the exit
+is unlikely to be the farthest point from the entrance.  The entrance is
+100% blue, and the farthest point is 0% (black).
+
+
+The standard recursive algorithm can be seen as follows:
+
+1. Enter a cell, and determine an order in which to visit the other
+three adjacent cells.
+2. Enter each empty adjacent cell in that order and recurse.
+
+This algorithm makes nice mazes, but there are some limitations.
+Without offering a formal proof, trust me when I say that no cell can
+have all four walls open.  There are other structures which cannot
+exist, such as two parallel tunnels with a door between them in the
+middle.
+
+Nevertheless, this algorithm is popular for its simplicity.  In this
+instance, I have "unrolled" the recursive algorithm and basically
+perform the recursion the hard way.  On a normal maze of 100x75, the
+stack typically overflows in some browsers.
+
+It's possible to alter the look of these mazes by changing the chances
+involved with the algorithm determining the order in which the various
+walls are checked within a cell.  An emphasis on trying "straight"
+first, for instance, will result in mazes with longer runs.  An emphasis
+on turning first will result in "tight" mazes with lots of twists and
+turns.
+
+These mazes are typically smoother than those created by the other two
+algorithms.  You will see fewer "dead ends" in these mazes.
+
+
+The drunk walk algorithm is based on the concept of drunk-walk fractals.
+Instead of growing a regular fractal, though, we use the algorithm to
+create a space-filling curve, i.e. a maze.  In this, segments are
+created one at a time and grow randomly until they hit another segment,
+at which point the two are attached and another segment started at a
+random location.  This continues until all cells are filled.
+
+
+The drunk walk walls algorithm is similar, but instead of growing maze
+tunnels we grow the walls.  The walls are essentially the same as a
+maze, too, but with the critical difference that there are two distinct
+sets of walls and no "path" through them.  You can think of a maze as
+two sets of walls that come up to each other but never intersect, and
+the maze solution is that path that follows the edge between the two
+sets of walls.
+
+
+These are for your amusement or to learn more.  I hope the code is
+clean enough for you to work with if you choose.  Enjoy!
+
+Released under the MIT license, see included file.
+
+Requires no other files, each html file has all code and style
+information.

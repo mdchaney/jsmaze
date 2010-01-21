@@ -1,0 +1,364 @@
+<?xml-stylesheet href="#maze-style" type="text/css"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<head>
+		<title>Maze</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<style type="text/css" id="maze-style">
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			div#wrap { width: 90%; height: 90%; margin: auto auto; }
+			table.maze { width: 100%; height: 100%; border: 1px solid blue;}
+			table.maze td { border-width: 0px; border-style: solid; border-color: red; }
+			table.maze td { padding: 0; font-size: 1px; height: 10px; }
+			table.maze td.b0000 { border: none; }
+			table.maze td.b0001 { border-top-width: 1px; }
+			table.maze td.b0010 { border-right-width: 1px; }
+			table.maze td.b0011 { border-top-width: 1px; border-right-width: 1px; }
+			table.maze td.b0100 { border-bottom-width: 1px; }
+			table.maze td.b0101 { border-top-width: 1px; border-bottom-width: 1px; }
+			table.maze td.b0110 { border-right-width: 1px; border-bottom-width: 1px; }
+			table.maze td.b0111 { border-top-width: 1px; border-right-width: 1px; border-bottom-width: 1px; }
+			table.maze td.b1000 { border-left-width: 1px; }
+			table.maze td.b1001 { border-top-width: 1px; border-left-width: 1px; }
+			table.maze td.b1010 { border-right-width: 1px; border-left-width: 1px; }
+			table.maze td.b1011 { border-top-width: 1px; border-right-width: 1px; border-left-width: 1px; }
+			table.maze td.b1100 { border-bottom-width: 1px; border-left-width: 1px; }
+			table.maze td.b1101 { border-top-width: 1px; border-bottom-width: 1px; border-left-width: 1px; }
+			table.maze td.b1110 { border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; }
+			table.maze td.b1111 { border-top-width: 1px; border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; }
+		</style>
+		<script type="text/javascript">
+			// <![CDATA[
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.indexOf('[]')==pname.length-2) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			var args=get_args();
+
+			// Basically, this array "converts" any number 0-15 to its
+			// binary equivalent as a string, which is useful for the use
+			// with the above stylesheet.
+			var to_bin=['0000', '0001', '0010', '0011', '0100', '0101', '0110', '0111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111'];
+
+			// Dir:     0 1 2 3
+			//          W S E N
+			var wdeltax=[-1,0,1,0];
+			var wdeltay=[0,1,0,-1];
+
+			// perms array has these indices:
+			//   1. direction of entering square
+			//   2. a perm #
+			//   3. a direction #
+			//   4. sequence #
+			//
+			//   Note that the perm# is broken down as follows:
+			//      0 - go straight first
+			//      1 - go straight second
+			//      2 - go straight last
+			//
+			//   Direction # is:
+			//      0 - left first
+			//      1 - right first
+			//
+			//   Therefore:
+			//
+			//   	  0,0 - straight,right,left
+			//   	  0,1 - straight,left,right
+			//   	  1,0 - right,straight,left
+			//   	  1,1 - left,straight,right
+			//   	  2,0 - right,left,straight
+			//   	  2,1 - left,right,straight
+
+			var perms = [[[[0,1,3],[0,3,1]],[[1,0,3],[3,0,1]],[[1,3,0],[3,1,0]]],
+                      [[[1,2,0],[1,0,2]],[[2,1,0],[0,1,2]],[[2,0,1],[0,2,1]]],
+                      [[[2,3,1],[2,1,3]],[[3,2,1],[1,2,3]],[[3,1,2],[1,3,2]]],
+                      [[[3,0,2],[3,2,0]],[[0,3,2],[2,3,0]],[[0,2,3],[2,0,3]]]];
+
+			var xsize=parseInt(args['xsize'])+1;
+			var ysize=parseInt(args['ysize'])+1;
+			if (!xsize) xsize=11;
+			if (!ysize) ysize=11;
+
+			// wall nodes can be thought of as the dot (node) where up to
+			// four wall segments meet at a corner.  This is the opposite
+			// of the maze nodes in directions, 0-W, 1-S, 2-E, and 3-N.  We
+			// also start with no walls (0) and add walls rather than
+			// knocking them down.
+			function WallNode(walls, serial) {
+				this.walls=(walls===undefined ? 0 : walls);
+				this.entry=0;
+				this.perm=0;
+				this.start=0;
+				this.current=0;
+				this.depth=0;
+				this.serial=serial;
+			}
+
+			var walls=new Array(xsize);
+			for (var x=0 ; x<xsize ; x++) {
+				walls[x]=new Array(ysize);
+				for (var y=0 ; y<ysize ; y++) {
+					walls[x][y]=new WallNode();
+				}
+				walls[x][0]=new WallNode(5, 0);
+				walls[x][ysize-1]=new WallNode(5, 0);
+			}
+			for (var y=1 ; y<ysize ; y++) {
+				walls[0][y]=new WallNode(10,0);
+				walls[xsize-1][y]=new WallNode(10,0);
+			}
+			// make all corners 0
+			walls[0][0]=new WallNode(6,0);
+			walls[xsize-1][0]=new WallNode(3,0);
+			walls[0][ysize-1]=new WallNode(12,0);
+			walls[xsize-1][ysize-1]=new WallNode(9,0);
+
+			var pieces_left=(xsize-2)*(ysize-2);
+
+			// This moves around until it connects to another segment or
+			// gets too long.
+			function make_walls(x,y,dir,serial) {
+
+				pieces_left--;
+				walls[x][y].serial=serial;
+
+				var i,j,k,new_dir;
+				var lr=(Math.random()>=.5 ? 0 : 1);
+				var straightness=Math.floor(Math.random()*3);
+
+				for (k=0 ; k<3 ; k++) {
+
+					new_dir = perms[dir][straightness][lr][k];
+					i=x+wdeltax[new_dir];
+					j=y+wdeltay[new_dir];
+
+					if (walls[i][j].walls==0) {
+						walls[x][y].walls |= (1<<new_dir);
+						walls[i][j].walls |= (1<<(new_dir^2));
+						var ret=make_walls(i,j,new_dir,serial);
+						if (!ret) return false;
+					} else if (walls[i][j].serial!=serial) {
+						walls[x][y].walls |= (1<<new_dir);
+						walls[i][j].walls |= (1<<(new_dir^2));
+						return false;
+					}
+				}
+				return true;
+			}
+
+			serial=2;
+
+			// Now, create segments while there are pieces left
+			while (pieces_left>0) {
+				var next_start=Math.floor(Math.random()*pieces_left)+1;
+				var empty_found=0, x, y;
+				for (x=1 ; x<xsize ; x++) {
+					for (y=1 ; y<ysize ; y++) {
+						if (walls[x][y].walls==0) empty_found++;
+						if (empty_found>=next_start) break;
+					}
+					if (empty_found>=next_start) break;
+				}
+				make_walls(x,y,Math.floor(Math.random()*3),serial++);
+			}
+
+			// Now, we have the walls, let's normalize them into a
+			// maze-centric view.  It would be easy to display them as
+			// walls, but I want it in a maze array so that I can easily
+			// solve it and such.
+
+			// Start out with all cells at 15, which is the first four bits
+			// For each cell, we need to keep state.  The algorithm is
+			// recursive, but allowing the stack to deal with the recursion
+			// will quickly lead to an overflow.  Here are the variables
+			// that we have to keep track of for each cell:
+			// 1. walls (maze array)
+			// 2. entry direction
+			// 3. permutation
+			// 4. start direction
+			// 5. current sequence
+			// 6. depth
+			// 7. is this outside of the maze
+			// 8. serial number of this segment
+
+			function MazePiece(walls, serial, side) {
+				this.walls=walls===undefined ? 15 : walls;
+				this.entry=0;
+				this.perm=0;
+				this.start=0;
+				this.current=0;
+				this.depth=0;
+				this.side=side;
+				this.serial=serial;
+			}
+
+			// For a cell at (x,y), the top and right walls come from
+			// walls[x,y] bits 0 and 1.  The bottom and left come from
+			// walls[x-1,y+1], bits 2 and 3.
+			var maze=new Array(xsize+1);
+			for (var x=0 ; x<=xsize ; x++) {
+				maze[x]=new Array(ysize+1);
+				for (var y=0 ; y<=ysize ; y++) {
+					var bl=0, tr=0;
+					if (x<xsize && y>0) tr=walls[x][y-1].walls&3;
+					if (x>0 && y<ysize) bl=walls[x-1][y].walls&12;
+					maze[x][y]=new MazePiece(bl|tr);
+				}
+			}
+			// make all corners 0
+			maze[0][0]=new MazePiece(0, 0, true);
+			maze[xsize][0]=new MazePiece(0, 0, true);
+			maze[0][ysize]=new MazePiece(0, 0, true);
+			maze[xsize][ysize]=new MazePiece(0, 0, true);
+
+			var startx=1;
+			var starty=ysize;
+
+			var depth=0;
+			var maxdepth=1;
+			var serial=1;
+
+			// Dir:     0 1 2 3
+			//          N E S W
+			var deltax=[0,1,0,-1];
+			var deltay=[-1,0,1,0];
+
+			function find_depth(x,y,dir,depth) {
+				maze[x][y].depth=depth;
+				if (depth>maxdepth) maxdepth=depth;
+				for (var k=0 ; k<3 ; k++) {
+					var new_dir=perms[dir][0][0][k];
+					if (!(maze[x][y].walls & 1<<new_dir)) {
+						i=x+deltax[new_dir];
+						j=y+deltay[new_dir];
+						find_depth(i,j,new_dir,depth+1);
+					}
+				}
+			}
+
+			// Finally, make the entrance and exit, and set the depth based
+			// on distance from the entrance.
+
+			find_depth(1,ysize-1,0,0);
+
+			maze[1][ysize-1].walls &= ~(1<<2);
+			maze[1][ysize].walls &= ~(1<<0);
+
+			maze[xsize-1][0].walls &= ~(1<<2);
+			maze[xsize-1][1].walls &= ~(1<<0);
+
+			// Set the depth of the side pieces to something interesting
+			var total_length=xsize+ysize+1;
+			for (var x=1 ; x<xsize ; x++) {
+				maze[x][0].depth = Math.floor((x+ysize)/total_length*maxdepth);
+				maze[x][ysize].depth = Math.floor((x-1)/total_length*maxdepth);
+			}
+			for (var y=0 ; y<=ysize ; y++) {
+				maze[0][y].depth = Math.floor((ysize-y+1)/total_length*maxdepth);
+				maze[xsize][y].depth = Math.floor((xsize+ysize-y+1)/total_length*maxdepth);
+			}
+
+			//]]>
+		</script>
+	</head>
+
+	<body>
+
+		<div id="wrap">
+
+			<h1>JavaScript Maze</h1>
+			<h2>Drunk Walk Walls Algorithm</h2>
+
+			<script type="text/javascript">
+				// <![CDATA[
+				if (false) {
+				document.write("<pre>\n");
+				for (var y=0 ; y<ysize ; y++) {
+					document.write('<tr>');
+					for (var x=0 ; x<xsize ; x++) {
+						if (walls[x][y].walls & 1) {
+							document.write('****');
+						} else if (walls[x][y].walls) {
+							document.write('   *');
+						} else {
+							document.write('    ');
+						}
+					}
+					document.write("\n");
+					for (var z=0 ; z<3 ; z++) {
+					for (var x=0 ; x<xsize ; x++) {
+						if (walls[x][y].walls & 2) {
+							document.write('   *');
+						} else {
+							document.write('    ');
+						}
+					}
+					document.write("\n");
+					}
+				}
+				document.write("</pre>\n");
+				}
+				//]]>
+			</script>
+
+			<table class="maze" cellspacing="0">
+			<script type="text/javascript">
+				// <![CDATA[
+				for (var y=0 ; y<=ysize ; y++) {
+					document.write('<tr>');
+					for (var x=0 ; x<=xsize ; x++) {
+						document.write('<td style="background: rgb(0,0,' + (255-Math.floor((maze[x][y].depth/maxdepth)*255)) + ');" class="b' + to_bin[maze[x][y].walls] + '">&nbsp;</td>');
+						// document.write('<td class="b' + to_bin[maze[x][y].walls] + '">&nbsp;</td>');
+					}
+					document.write('</tr>');
+				}
+				//]]>
+			</script>
+			</table>
+
+
+		  <p><a href="http://validator.w3.org/check?uri=referer"><img src="http://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0 Transitional" height="31" width="88" /></a></p>
+
+		</div>
+	</body>
+
+</html>
