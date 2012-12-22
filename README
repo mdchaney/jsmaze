@@ -18,11 +18,11 @@ The standard recursive algorithm can be seen as follows:
 three adjacent cells.
 2. Enter each empty adjacent cell in that order and recurse.
 
-This algorithm makes nice mazes, but there are some limitations.
-Without offering a formal proof, trust me when I say that no cell can
-have all four walls open.  There are other structures which cannot
-exist, such as two parallel tunnels with a door between them in the
-middle.
+This algorithm makes nice mazes, but there are some limitations.  It is
+extremely rare that a single cell will have all four walls open, and in
+fact this can happen only when a tunnel loops into a cove created by
+itself.  There are other structures which cannot exist, such as two
+parallel tunnels with a door between them in the middle.
 
 Nevertheless, this algorithm is popular for its simplicity.  However, on
 a normal maze of 100x75, the stack typically overflows in some browsers.
@@ -37,7 +37,8 @@ on turning first will result in "tight" mazes with lots of twists and
 turns.
 
 These mazes are typically smoother than those created by the other two
-algorithms.  You will see fewer "dead ends" in these mazes.
+algorithms.  You will see fewer "dead ends" in these mazes.  These mazes
+tend to be the most aesthetically pleasing.
 
 
 The drunk walk algorithm is based on the concept of drunk-walk fractals.
