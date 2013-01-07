@@ -1,0 +1,321 @@
+<?xml-stylesheet href="#maze-style" type="text/css"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<head>
+		<title>Maze</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<style type="text/css" id="maze-style">
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			body { background: #ddd; }
+			div#wrap { width: 90%; height: 90%; margin: auto auto; }
+			div#svg-container { width: 100%; height: 90%; background: #fff; }
+		</style>
+		<script type="text/javascript">
+			// <![CDATA[
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.indexOf('[]')==pname.length-2) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			// Gives us a random permutation.  This is Durstenfeld's
+			// version of Knuth's shuffle, with in-place swapping.
+			function random_perm(len) {
+				var orig=Array(len);
+				for (var x=0; x<len; x++) {
+					orig[x]=x;
+				}
+				for (var x=len-1; x>0; x--) {
+					var offset=Math.floor(Math.random()*(x+1));
+					if (offset != x) {
+						var tmp = orig[offset];
+						orig[offset] = orig[x];
+						orig[x] = tmp;
+					}
+				}
+				return orig;
+			}
+
+			// The maze is set on a set of points, some of which connect to
+			// form walls.  A closed set of walls connects to create a
+			// cell.  We use object references between cells and walls
+			// to quickly be able to traverse the maze.  So, a wall has a
+			// list of both cells to which it connects and a cell has a
+			// list of all of its walls.
+			//
+			// Points have an x,y coordinate that exists to specify their
+			// position relative to other points.  They also have a set of
+			// walls that use them as an end point.
+
+			function Point(x, y, walls) {
+				this.x=x;
+				this.y=y;
+				this.walls=(walls||[]);
+			}
+
+			// Walls have a few pieces of information: two end points, the
+			// state (open (0) or closed (1)), and the two cells that it
+			// connects.
+
+			function Wall(p1,p2,state,cells) {
+				this.points=Array(p1,p2);
+				this.state=(state===undefined ? 1 : state);
+				this.cells=(cells||[]);
+				this.points[0].walls.push(this);
+				this.points[1].walls.push(this);
+			}
+
+			Wall.prototype.open = function() {
+				return (this.state==0);
+			}
+
+			// Each wall has one or two cells (it's possible that
+			// an edge wall may have only one cell).  This will
+			// return "undefined" if there is no neighbor, otherwise it
+			// will return the neighbor given a reference to one cell.
+			Wall.prototype.neighbor = function(cell) {
+				if (this.cells[0] == cell) {
+					this.cells[1];
+				} else {
+					this.cells[0];
+				}
+			}
+
+			// Cells have a set of walls along with a few other pieces of
+			// information that are used while generating a maze.
+			// Generally, a permutation of wall directions and a pointer to
+			// the "current" item in the permutation list.
+
+			function Cell(walls) {
+				this.walls = walls;
+				for (var i=0 ; i<this.walls.length ; i++) {
+					this.walls[i].cells.push(this);
+				}
+				this.perm=random_perm(this.walls.length);
+				this.current_perm=0;
+				this.entry=undefined;
+				this.depth=undefined;
+			}
+
+			Cell.prototype.visited = function() {
+				for (var i=0 ; i<this.walls.length ; i++) {
+					if (this.walls[i].open()) {
+						return true;
+					}
+				}
+				return false;
+			}
+
+			Cell.prototype.center = function() {
+				var x_avg = 0.0;
+				for (var i=0 ; i<this.walls.length ; i++) {
+					x_avg += this.walls[i].points[0].x;
+					x_avg += this.walls[i].points[1].x;
+				}
+				x_avg /= this.walls.length * 2;
+				var y_avg = 0.0;
+				for (var i=0 ; i<this.walls.length ; i++) {
+					y_avg += this.walls[i].points[0].y;
+					y_avg += this.walls[i].points[1].y;
+				}
+				y_avg /= this.walls.length * 2;
+				return(new Point(x_avg,y_avg));
+			}
+
+			// To create a maze, we need to move around until we're back to
+			// the original point.
+
+			var maxdepth=0;
+
+			// If performed recursively, this algorithm is simple...
+			function make_maze(cell,depth) {
+
+				// end recursion if there's no cell or it's been visited.
+				if (!cell || cell.visited()) return;
+
+				// update max depth
+				if (depth>maxdepth) maxdepth=depth;
+
+				cell.depth=depth;
+
+				// Now, go through the surrounding cells and recurse
+				for (k=0 ; k<cell.perm.length ; k++) {
+					make_maze(cell.walls[k].neighbor(cell),depth+1);
+				}
+			}
+
+			var args=get_args();
+
+			var xsize=parseInt(args['xsize'])+1;
+			var ysize=parseInt(args['ysize'])+1;
+			if (!xsize) xsize=10;
+			if (!ysize) ysize=10;
+
+			// all_points[x][y] = point - this exists only as a tool to
+			// keep track of points for wall building.
+			var all_points = Array(xsize+1);
+
+			// An array with every single wall
+			var all_walls = [];
+
+			// An array to keep track of all cells
+			var all_cells = [];
+
+			// This will create a simple square maze
+			function make_square_maze(xsize,ysize,all_points,all_walls) {
+				for (var x=0 ; x<= xsize ; x++) {
+					all_points[x] = Array(ysize+1);
+					for (var y=0 ; y<= ysize ; y++) {
+						all_points[x][y] = new Point(x,y);
+						// Build vertical walls
+						if (y>0) {
+							all_walls.push(new Wall(all_points[x][y-1], all_points[x][y]));
+						}
+						// Build horizontal walls
+						if (x>0) {
+							all_walls.push(new Wall(all_points[x-1][y],all_points[x][y]));
+						}
+					}
+				}
+			}
+
+			// Triangle maze - on odd rows the points are in odd columns,
+			// in even rows the points are in even columns.
+			function make_triangle_maze(xsize,ysize,all_points,all_walls) {
+				// First, make the points - even lines/cols
+				for (var x = 0 ; x < xsize+1 ; x += 2) {
+					all_points[x] = Array(ysize+1);
+					for (var y = 0 ; y < ysize+1 ; y += 2) {
+						all_points[x][y] = new Point(x,y);
+						// Build horizontal walls
+						if (x>0) {
+							all_walls.push(new Wall(all_points[x-2][y],all_points[x][y]));
+						}
+					}
+				}
+
+				// Next, make the points - odd lines/cols
+				for (var x = 1 ; x < xsize+1 ; x += 2) {
+					all_points[x] = Array(ysize+1);
+					for (var y = 1 ; y < ysize+1 ; y += 2) {
+						all_points[x][y] = new Point(x,y);
+						// Build horizontal walls
+						if (x>1) {
+							all_walls.push(new Wall(all_points[x-2][y],all_points[x][y]));
+						}
+					}
+				}
+
+				// Now, make walls from even cols to odd cols
+				for (var x = 0 ; x < xsize ; x += 2) {
+					for (var y=0 ; y < ysize ; y += 2) {
+						if (all_points[x+1]) {
+							if (all_points[x+1][y+1]) {
+								all_walls.push(new Wall(all_points[x][y],all_points[x+1][y+1]));
+							}
+							if (all_points[x][y+2]) {
+								all_walls.push(new Wall(all_points[x+1][y+1],all_points[x][y+2]));
+							}
+						}
+						if (all_points[x+2]) {
+							if (all_points[x+1][y+1]) {
+								all_walls.push(new Wall(all_points[x+2][y],all_points[x+1][y+1]));
+							}
+							if (all_points[x+2][y+2]) {
+								all_walls.push(new Wall(all_points[x+1][y+1],all_points[x+2][y+2]));
+							}
+						}
+					}
+				}
+			}
+
+			make_triangle_maze(xsize,ysize,all_points,all_walls);
+			//make_square_maze(xsize,ysize,all_points,all_walls);
+
+			// We now have a complete set of points and walls, we need to
+			// walk that data structure and determine a set of cells.
+
+
+
+			//]]>
+		</script>
+	</head>
+
+	<body>
+
+		<div id="wrap">
+
+			<h1>JavaScript Maze</h1>
+
+			<div id="svg-container"></div>
+
+			<script type="text/javascript">
+				// <![CDATA[
+					var container_div = document.getElementById("svg-container");
+					var mySvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+					mySvg.setAttribute("version", "1.2");
+					mySvg.setAttribute("baseProfile", "tiny");
+					container_div.appendChild(mySvg);
+
+					var container_xsize = container_div.offsetWidth;
+					var xmult = container_xsize / (xsize + 1);
+					var container_ysize = container_div.offsetHeight;
+					var ymult = container_ysize / (ysize + 1);
+
+					for (var x=0 ; x< all_walls.length ; x++) {
+						var wall = all_walls[x];
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+						l.setAttribute("x1", wall.points[0].x * xmult + xmult/2);
+						l.setAttribute("y1", wall.points[0].y * ymult + ymult/2);
+						l.setAttribute("x2", wall.points[1].x * xmult + xmult/2);
+						l.setAttribute("y2", wall.points[1].y * ymult + ymult/2);
+						l.setAttribute("stroke", "#000008");
+						l.setAttribute("stroke-width", "1");
+						mySvg.appendChild(l);
+					}
+				//]]>
+			</script>
+
+		  <p><a href="http://validator.w3.org/check?uri=referer"><img src="http://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0 Transitional" height="31" width="88" /></a></p>
+
+		</div>
+	</body>
+
+</html>
