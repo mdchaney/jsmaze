@@ -84,26 +84,99 @@
 			// position relative to other points.  They also have a set of
 			// walls that use them as an end point.
 
-			function Point(x, y, walls) {
+			function Point(x, y) {
 				this.x=x;
 				this.y=y;
-				this.walls=(walls||[]);
+				this.walls=[];
+			}
+
+			Point.prototype.angle_to = function(other_point) {
+				return Math.atan2(other_point.y-this.y,other_point.x-this.x)
+			}
+
+			Point.prototype.next_cw_wall = function(this_wall) {
+				var wall_at = null;
+				for (var j=0 ; j<this.walls.length ; j++) {
+					if (this.walls[j] == this_wall) {
+						wall_at = j;
+						break;
+					}
+				}
+				if (wall_at !== null) {
+					if (wall_at > 0) {
+						return this.walls[wall_at-1];
+					} else {
+						return this.walls[this.walls.length-1];
+					}
+				} else {
+					return null;
+				}
 			}
 
 			// Walls have a few pieces of information: two end points, the
 			// state (open (0) or closed (1)), and the two cells that it
 			// connects.
 
-			function Wall(p1,p2,state,cells) {
-				this.points=Array(p1,p2);
-				this.state=(state===undefined ? 1 : state);
-				this.cells=(cells||[]);
-				this.points[0].walls.push(this);
-				this.points[1].walls.push(this);
+			function Wall(p1,p2) {
+				this.points=[p1,p2];
+				this.state=1;
+				this.cells=[];
+				p1.walls.push(this);
+				p2.walls.push(this);
+				// These are used for face finding - "down" is "point 0 to
+				// point 1", "up" is "point 1 to point 0".
+				this.traversed_down=false;
+				this.traversed_up=false;
+			}
+
+			Wall.prototype.is_open = function() {
+				return (this.state==0);
 			}
 
 			Wall.prototype.open = function() {
-				return (this.state==0);
+				if (this.state==0) {
+					return null;
+				} else {
+					this.state=0;
+					return true;
+				}
+			}
+
+			// Given a point, returns the "other end" point on the wall.
+			Wall.prototype.other_end = function(point) {
+				if (this.points[0] == point) {
+					return(this.points[1]);
+				} else if (this.points[1] == point) {
+					return(this.points[0]);
+				} else {
+					return null;
+				}
+			}
+
+			Wall.prototype.traverse = function(point0, point1) {
+				if (point0 == this.points[0] && point1 == this.points[1]) {
+					this.traversed_down = true;
+					return point1;
+				} else if (point0 == this.points[1] && point1 == this.points[0]) {
+					this.traversed_up = true;
+					return point1;
+				} else {
+					return null;
+				}
+			}
+
+			Wall.prototype.traversed = function(point0, point1) {
+				if (point0 == this.points[0] && point1 == this.points[1]) {
+					return this.traversed_down;
+				} else if (point0 == this.points[1] && point1 == this.points[0]) {
+					return this.traversed_up;
+				} else {
+					return null;
+				}
+			}
+
+			Wall.prototype.toString = function() {
+				return "" + this.points[0].x + ',' + this.points[0].y + ':' + this.points[1].x + ',' + this.points[1].y;
 			}
 
 			// Each wall has one or two cells (it's possible that
@@ -112,9 +185,9 @@
 			// will return the neighbor given a reference to one cell.
 			Wall.prototype.neighbor = function(cell) {
 				if (this.cells[0] == cell) {
-					this.cells[1];
+					return this.cells[1];
 				} else {
-					this.cells[0];
+					return this.cells[0];
 				}
 			}
 
@@ -136,7 +209,7 @@
 
 			Cell.prototype.visited = function() {
 				for (var i=0 ; i<this.walls.length ; i++) {
-					if (this.walls[i].open()) {
+					if (this.walls[i].is_open()) {
 						return true;
 					}
 				}
@@ -165,10 +238,7 @@
 			var maxdepth=0;
 
 			// If performed recursively, this algorithm is simple...
-			function make_maze(cell,depth) {
-
-				// end recursion if there's no cell or it's been visited.
-				if (!cell || cell.visited()) return;
+			function make_maze(cell,entry_wall,depth) {
 
 				// update max depth
 				if (depth>maxdepth) maxdepth=depth;
@@ -176,8 +246,13 @@
 				cell.depth=depth;
 
 				// Now, go through the surrounding cells and recurse
-				for (k=0 ; k<cell.perm.length ; k++) {
-					make_maze(cell.walls[k].neighbor(cell),depth+1);
+				for (var k=0 ; k<cell.perm.length ; k++) {
+					var wall_num = cell.perm[k];
+					var neighbor = cell.walls[wall_num].neighbor(cell);
+					if (neighbor && !neighbor.visited()) {
+						cell.walls[wall_num].open();
+						make_maze(neighbor,cell.walls[wall_num],depth+1);
+					}
 				}
 			}
 
@@ -188,29 +263,30 @@
 			if (!xsize) xsize=10;
 			if (!ysize) ysize=10;
 
-			// all_points[x][y] = point - this exists only as a tool to
-			// keep track of points for wall building.
-			var all_points = Array(xsize+1);
+			// An array with every single point
+			var all_points = [];
 
 			// An array with every single wall
 			var all_walls = [];
 
-			// An array to keep track of all cells
-			var all_cells = [];
-
 			// This will create a simple square maze
-			function make_square_maze(xsize,ysize,all_points,all_walls) {
+			function make_square_maze_base(xsize,ysize,all_points,all_walls) {
+				// points_tracker[x][y] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(xsize+1);
+
 				for (var x=0 ; x<= xsize ; x++) {
-					all_points[x] = Array(ysize+1);
+					points_tracker[x] = Array(ysize+1);
 					for (var y=0 ; y<= ysize ; y++) {
-						all_points[x][y] = new Point(x,y);
+						points_tracker[x][y] = new Point(x,y);
+						all_points.push(points_tracker[x][y]);
 						// Build vertical walls
 						if (y>0) {
-							all_walls.push(new Wall(all_points[x][y-1], all_points[x][y]));
+							all_walls.push(new Wall(points_tracker[x][y-1], points_tracker[x][y]));
 						}
 						// Build horizontal walls
 						if (x>0) {
-							all_walls.push(new Wall(all_points[x-1][y],all_points[x][y]));
+							all_walls.push(new Wall(points_tracker[x-1][y],points_tracker[x][y]));
 						}
 					}
 				}
@@ -218,27 +294,33 @@
 
 			// Triangle maze - on odd rows the points are in odd columns,
 			// in even rows the points are in even columns.
-			function make_triangle_maze(xsize,ysize,all_points,all_walls) {
+			function make_triangle_maze_base(xsize,ysize,points_tracker,all_walls) {
+				// points_tracker[x][y] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(xsize+1);
+
 				// First, make the points - even lines/cols
 				for (var x = 0 ; x < xsize+1 ; x += 2) {
-					all_points[x] = Array(ysize+1);
+					points_tracker[x] = Array(ysize+1);
 					for (var y = 0 ; y < ysize+1 ; y += 2) {
-						all_points[x][y] = new Point(x,y);
+						points_tracker[x][y] = new Point(x,y);
+						all_points.push(points_tracker[x][y]);
 						// Build horizontal walls
 						if (x>0) {
-							all_walls.push(new Wall(all_points[x-2][y],all_points[x][y]));
+							all_walls.push(new Wall(points_tracker[x-2][y],points_tracker[x][y]));
 						}
 					}
 				}
 
 				// Next, make the points - odd lines/cols
 				for (var x = 1 ; x < xsize+1 ; x += 2) {
-					all_points[x] = Array(ysize+1);
+					points_tracker[x] = Array(ysize+1);
 					for (var y = 1 ; y < ysize+1 ; y += 2) {
-						all_points[x][y] = new Point(x,y);
+						points_tracker[x][y] = new Point(x,y);
+						all_points.push(points_tracker[x][y]);
 						// Build horizontal walls
 						if (x>1) {
-							all_walls.push(new Wall(all_points[x-2][y],all_points[x][y]));
+							all_walls.push(new Wall(points_tracker[x-2][y],points_tracker[x][y]));
 						}
 					}
 				}
@@ -246,33 +328,84 @@
 				// Now, make walls from even cols to odd cols
 				for (var x = 0 ; x < xsize ; x += 2) {
 					for (var y=0 ; y < ysize ; y += 2) {
-						if (all_points[x+1]) {
-							if (all_points[x+1][y+1]) {
-								all_walls.push(new Wall(all_points[x][y],all_points[x+1][y+1]));
+						if (points_tracker[x+1]) {
+							if (points_tracker[x+1][y+1]) {
+								all_walls.push(new Wall(points_tracker[x][y],points_tracker[x+1][y+1]));
 							}
-							if (all_points[x][y+2]) {
-								all_walls.push(new Wall(all_points[x+1][y+1],all_points[x][y+2]));
+							if (points_tracker[x][y+2]) {
+								all_walls.push(new Wall(points_tracker[x+1][y+1],points_tracker[x][y+2]));
 							}
 						}
-						if (all_points[x+2]) {
-							if (all_points[x+1][y+1]) {
-								all_walls.push(new Wall(all_points[x+2][y],all_points[x+1][y+1]));
+						if (points_tracker[x+2]) {
+							if (points_tracker[x+1][y+1]) {
+								all_walls.push(new Wall(points_tracker[x+2][y],points_tracker[x+1][y+1]));
 							}
-							if (all_points[x+2][y+2]) {
-								all_walls.push(new Wall(all_points[x+1][y+1],all_points[x+2][y+2]));
+							if (points_tracker[x+2][y+2]) {
+								all_walls.push(new Wall(points_tracker[x+1][y+1],points_tracker[x+2][y+2]));
 							}
 						}
 					}
 				}
 			}
 
-			make_triangle_maze(xsize,ysize,all_points,all_walls);
-			//make_square_maze(xsize,ysize,all_points,all_walls);
+			make_triangle_maze_base(xsize,ysize,all_points,all_walls);
+			//make_square_maze_base(xsize,ysize,all_points,all_walls);
+
+			// To ease the face-finding algorithm, we can sort the walls at
+			// each point in order of angle.
+			for (var i = 0 ; i < all_points.length ; i++) {
+				var point = all_points[i];
+				// array of arrays: [wall, angle]
+				var walls = [];
+				for (var j = 0 ; j < point.walls.length ; j++) {
+					var wall = point.walls[j];
+					walls.push([wall,point.angle_to(wall.other_end(point))]);
+				}
+				function wall_sorter(a,b) { return(a[1]-b[1]); }
+				walls.sort(wall_sorter);
+				point.walls = [];
+				for (var j = 0 ; j < walls.length ; j++) {
+					point.walls.push(walls[j][0]);
+				}
+			}
 
 			// We now have a complete set of points and walls, we need to
 			// walk that data structure and determine a set of cells.
+			// In graph parlance, points == vertices, walls == edges, and
+			// cells == faces.
 
+			// An array to keep track of all cells
+			var all_cells = [];
 
+			function walk_walls(point, all_cells) {
+				for (var i=0 ; i<point.walls.length ; i++) {
+					var wall = point.walls[i];
+					if (!wall.traversed(point,wall.other_end(point))) {
+						var safety_counter = 0;
+						var this_point=point;
+						var walls = [];
+						do {
+							walls.push(wall);
+							this_point = wall.traverse(this_point,wall.other_end(this_point));
+							wall = this_point.next_cw_wall(wall)
+							safety_counter++;
+						} while (this_point != point && safety_counter < 100);
+						if (safety_counter < 100) {
+							all_cells.push(new Cell(walls));
+						}
+					}
+				}
+			}
+
+			// There's a better more efficient way to do this - figure it
+			// out later.
+			// TODO: figure out a more efficient way to do this
+			for (var j=0 ; j<all_points.length ; j++) {
+				walk_walls(all_points[j], all_cells);
+			}
+
+			// Now that we have all this, make a maze through the cells
+			make_maze(all_cells[0],null,0);
 
 			//]]>
 		</script>
@@ -301,15 +434,29 @@
 
 					for (var x=0 ; x< all_walls.length ; x++) {
 						var wall = all_walls[x];
-						var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-						l.setAttribute("x1", wall.points[0].x * xmult + xmult/2);
-						l.setAttribute("y1", wall.points[0].y * ymult + ymult/2);
-						l.setAttribute("x2", wall.points[1].x * xmult + xmult/2);
-						l.setAttribute("y2", wall.points[1].y * ymult + ymult/2);
-						l.setAttribute("stroke", "#000008");
-						l.setAttribute("stroke-width", "1");
-						mySvg.appendChild(l);
+						if (!wall.is_open()) {
+							var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+							l.setAttribute("x1", wall.points[0].x * xmult + xmult/2);
+							l.setAttribute("y1", wall.points[0].y * ymult + ymult/2);
+							l.setAttribute("x2", wall.points[1].x * xmult + xmult/2);
+							l.setAttribute("y2", wall.points[1].y * ymult + ymult/2);
+							l.setAttribute("stroke", "#000008");
+							l.setAttribute("stroke-width", "1");
+							mySvg.appendChild(l);
+						}
 					}
+
+//					for (var x=0 ; x< all_cells.length ; x++) {
+//						var cell = all_cells[x];
+//						var center = cell.center();
+//						var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+//						c.setAttribute("cx", center.x * xmult + xmult/2);
+//						c.setAttribute("cy", center.y * ymult + ymult/2);
+//						c.setAttribute("r", 2);
+//						c.setAttribute("stroke", "#ff0008");
+//						c.setAttribute("stroke-width", "1");
+//						mySvg.appendChild(c);
+//					}
 				//]]>
 			</script>
 
