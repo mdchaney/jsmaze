@@ -207,6 +207,7 @@
 				this.depth=undefined;
 			}
 
+			// Returns true if the cell has an open wall
 			Cell.prototype.visited = function() {
 				for (var i=0 ; i<this.walls.length ; i++) {
 					if (this.walls[i].is_open()) {
@@ -216,6 +217,7 @@
 				return false;
 			}
 
+			// Returns a point representing the exact center of the cell.
 			Cell.prototype.center = function() {
 				var x_avg = 0.0;
 				for (var i=0 ; i<this.walls.length ; i++) {
@@ -230,6 +232,24 @@
 				}
 				y_avg /= this.walls.length * 2;
 				return(new Point(x_avg,y_avg));
+			}
+
+			// Return a list of all vertices of a cell, in order
+			Cell.prototype.vertices = function() {
+				var points = [];
+				// I need to pick only a single point from each wall, and it
+				// will be the point that isn't in the next wall.
+				for (var i=0 ; i<this.walls.length ; i++) {
+					var this_wall = this.walls[i];
+					var next_wall = this.walls[i+1];
+					if (!next_wall) { next_wall = this.walls[0]; }
+					if (this_wall.points[0] != next_wall.points[0] && this_wall.points[0] != next_wall.points[1]) {
+						points.push(this_wall.points[0]);
+					} else {
+						points.push(this_wall.points[1]);
+					}
+				}
+				return points;
 			}
 
 			// To create a maze, we need to move around until we're back to
@@ -389,8 +409,8 @@
 							this_point = wall.traverse(this_point,wall.other_end(this_point));
 							wall = this_point.next_cw_wall(wall)
 							safety_counter++;
-						} while (this_point != point && safety_counter < 100);
-						if (safety_counter < 100) {
+						} while (this_point != point && safety_counter < 20);
+						if (safety_counter < 20) {
 							all_cells.push(new Cell(walls));
 						}
 					}
@@ -406,6 +426,30 @@
 
 			// Now that we have all this, make a maze through the cells
 			make_maze(all_cells[0],null,0);
+
+			// Finally, open up the opposite corners for aesthetics
+			var found_one=0;
+			for (var j=0 ; j<all_points.length ; j++) {
+				var point = all_points[j];
+				if (point.x==0 && point.y==0) {
+					for (var i=0 ; i<point.walls.length ; i++) {
+						if (!point.walls[i].is_open()) {
+							point.walls[i].open();
+							found_one++;
+							break;
+						}
+					}
+				} else if (point.x==xsize && point.y==ysize) {
+					for (var i=point.walls.length-1 ; i>=0 ; i--) {
+						if (!point.walls[i].is_open()) {
+							point.walls[i].open();
+							found_one++;
+							break;
+						}
+					}
+				}
+				if (found_one>1) { break; }
+			}
 
 			//]]>
 		</script>
@@ -428,24 +472,54 @@
 					container_div.appendChild(mySvg);
 
 					var container_xsize = container_div.offsetWidth;
-					var xmult = container_xsize / (xsize + 1);
+					var xmult = container_xsize / (xsize + 2);
 					var container_ysize = container_div.offsetHeight;
-					var ymult = container_ysize / (ysize + 1);
+					var ymult = container_ysize / (ysize + 2);
 
-					for (var x=0 ; x< all_walls.length ; x++) {
+					var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+					r.setAttribute("x", 0);
+					r.setAttribute("y", 0);
+					r.setAttribute("width", container_xsize);
+					r.setAttribute("height", container_ysize);
+					r.setAttribute("fill", 'rgb(0,0,255)');
+					r.setAttribute("stroke", 'rgb(0,0,255)');
+					r.setAttribute("stroke-width", "1");
+					mySvg.appendChild(r);
+
+					// First, draw the depth
+					for (var x=0 ; x < all_cells.length ; x++) {
+						var cell = all_cells[x];
+						var points = cell.vertices();
+						var points_list = [];
+						for (var i=0 ; i < points.length ; i++) {
+							points_list.push("" + Math.floor(points[i].x * xmult + xmult) + "," + Math.floor(points[i].y * ymult + ymult));
+						}
+						var p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+						p.setAttribute("points", points_list.join(" "));
+						p.setAttribute("fill", 'rgb(0,0,' + (255-Math.floor((cell.depth/maxdepth)*255)) + ')');
+						p.setAttribute("stroke", 'rgb(0,0,' + (255-Math.floor((cell.depth/maxdepth)*255)) + ')');
+						p.setAttribute("stroke-width", "1");
+						mySvg.appendChild(p);
+					}
+
+					// Now, draw walls.
+					for (var x=0 ; x < all_walls.length ; x++) {
 						var wall = all_walls[x];
 						if (!wall.is_open()) {
 							var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-							l.setAttribute("x1", wall.points[0].x * xmult + xmult/2);
-							l.setAttribute("y1", wall.points[0].y * ymult + ymult/2);
-							l.setAttribute("x2", wall.points[1].x * xmult + xmult/2);
-							l.setAttribute("y2", wall.points[1].y * ymult + ymult/2);
-							l.setAttribute("stroke", "#000008");
+							l.setAttribute("x1", wall.points[0].x * xmult + xmult);
+							l.setAttribute("y1", wall.points[0].y * ymult + ymult);
+							l.setAttribute("x2", wall.points[1].x * xmult + xmult);
+							l.setAttribute("y2", wall.points[1].y * ymult + ymult);
+							l.setAttribute("stroke", "#ff0008");
 							l.setAttribute("stroke-width", "1");
 							mySvg.appendChild(l);
 						}
 					}
 
+//					// This code is useful for debugging the face-finding
+//					// algorithm.  It puts a red dot in the middle of every
+//					// face.
 //					for (var x=0 ; x< all_cells.length ; x++) {
 //						var cell = all_cells[x];
 //						var center = cell.center();

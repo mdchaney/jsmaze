@@ -2,7 +2,22 @@ These are maze generators written in JavaScript.  This includes three
 different algorithms: standard recursive, drunk walk, and drunk walk
 walls.
 
-All three accept xsize and ysize parameters as part of the url, i.e.
+There is a fourth program (jsmaze4.html) which is a generalized maze
+generator and can be used to make mazes with cells of any shape.  It is
+not necessary for the cells to be of regular shape, only that every
+vertex is properly marked with the walls built between them.  The code
+as-is includes a standard square maze as well as a maze with triangular
+cells.  The maze building algorithm is #1 - the simple depth-first
+recursive algorithm.
+
+There are some other simple maze styles that could be made.  Simple
+things that come to mind are a combination of octagons and squares,
+hexagons, a combination of squares and triangles (snub square tiling),
+or anything else that can tile a plane.  You just have to be able to
+compute every vertex and the line segments between them - basically
+describe it as a graph.
+
+All four accept xsize and ysize parameters as part of the url, i.e.
 file:///Users/mdchaney/mazes/jsmaze1.html?xsize=100&ysize=75
 
 The mazes fill in with a color that ranges from bright blue to black
