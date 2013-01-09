@@ -427,6 +427,9 @@
 			// Now that we have all this, make a maze through the cells
 			make_maze(all_cells[0],null,0);
 
+			// The depth of the "exit" cell
+			var end_depth=null;
+
 			// Finally, open up the opposite corners for aesthetics
 			var found_one=0;
 			for (var j=0 ; j<all_points.length ; j++) {
@@ -443,6 +446,7 @@
 					for (var i=point.walls.length-1 ; i>=0 ; i--) {
 						if (!point.walls[i].is_open()) {
 							point.walls[i].open();
+							end_depth = point.walls[i].cells[0].depth;
 							found_one++;
 							break;
 						}
@@ -476,12 +480,37 @@
 					var container_ysize = container_div.offsetHeight;
 					var ymult = container_ysize / (ysize + 2);
 
+					var defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+					defs.setAttribute('id', 'svgdefs');
+					mySvg.appendChild(defs);
+
+
+					var lg = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+					lg.setAttribute('id', 'svgbg');
+					lg.setAttribute('x1', '0%');
+					lg.setAttribute('x2', '100%');
+					lg.setAttribute('y1', '0%');
+					lg.setAttribute('y2', '100%');
+					defs.appendChild(lg);
+
+					var stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+					stop1.setAttribute('id', 'stop1');
+					stop1.setAttribute('offset', '0%');
+					stop1.setAttribute('stop-color', 'rgb(0,0,255)');
+					lg.appendChild(stop1);
+
+					var stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+					stop2.setAttribute('id', 'stop2');
+					stop2.setAttribute('offset', '100%');
+					stop2.setAttribute('stop-color', 'rgb(0,0,' + (255-Math.floor((end_depth/maxdepth)*255)) + ')');
+					lg.appendChild(stop2);
+
 					var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
 					r.setAttribute("x", 0);
 					r.setAttribute("y", 0);
 					r.setAttribute("width", container_xsize);
 					r.setAttribute("height", container_ysize);
-					r.setAttribute("fill", 'rgb(0,0,255)');
+					r.setAttribute("fill", 'url(#svgbg)');
 					r.setAttribute("stroke", 'rgb(0,0,255)');
 					r.setAttribute("stroke-width", "1");
 					mySvg.appendChild(r);
