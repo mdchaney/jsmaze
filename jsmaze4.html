@@ -262,11 +262,60 @@
 				return points;
 			}
 
+			// A maze is a collection of cells with a path through them.
+			// It is two graphs that are interconnected - one which is a
+			// set of all walls (close and open) and the other a path
+			// through the open walls.  This data structure holds
+			// everything of interest about the maze.
+			function Maze(xsize,ysize,base_style,maze_style) {
+				// General data and accessors
+				this.xsize = xsize;
+				this.ysize = ysize;
+				this.points = [];
+				this.walls = [];
+				this.cells = [];
+				this.start_cell=null;
+				this.end_cell=null;
+				this.max_depth=null;
+				this.end_depth=null;
+				this.base_style=base_style;
+				this.maze_style=maze_style;
+
+				// Now, we'll initialize the maze.  First, set up the cells
+				// according to the "base style".
+				this.base_style(this.xsize, this.ysize, this.points, this.walls);
+				this.sort_walls_for_points(this.points);
+				// We now have a complete set of points and walls, we need to
+				// walk that data structure and determine a set of cells.
+				// In graph parlance, points == vertices, walls == edges, and
+				// cells == faces.
+				// There's a better more efficient way to do this - figure it
+				// out later.
+				// TODO: figure out a more efficient way to do this
+				for (var j=0 ; j<this.points.length ; j++) {
+					this.find_faces(this.points[j], this.cells);
+				}
+				// At this point, we're ready to actually make a maze.  Get
+				// the start and end cells, then generate the maze.
+				this.start_cell = this.find_start_cell(this.points);
+				this.end_cell = this.find_end_cell(this.points);
+				this.maze_style(this.start_cell,null,0);
+				// Purely for aesthetics, open the corners
+				this.open_corners();
+				// And set the max depth and end depth, which are useful for
+				// rendering.
+				this.find_max_depth();
+				this.end_depth = this.end_cell.depth;
+			}
+
 			// To create a maze, we need to move around until we're back to
 			// the original point.
 
 			// If performed recursively, this algorithm is simple...
-			function make_maze_recursive(cell,entry_wall,depth) {
+			Maze.base_styles = {};
+			Maze.maze_styles = {};
+
+			Maze.maze_styles.recursive = function(cell,entry_wall,depth) {
 
 				cell.depth=depth;
 
@@ -276,21 +325,21 @@
 					var neighbor = cell.walls[wall_num].neighbor(cell);
 					if (neighbor && !neighbor.visited()) {
 						cell.walls[wall_num].open();
-						make_maze_recursive(neighbor,cell.walls[wall_num],depth+1);
+						arguments.callee(neighbor,cell.walls[wall_num],depth+1);
 					}
 				}
 			}
 
-			function find_max_depth(cells) {
-				var max_depth=0;
-				for (var i=0 ; i<cells.length ; i++) {
-					if (cells[i].depth > max_depth) { max_depth = cells[i].depth; }
+			Maze.prototype.find_max_depth = function() {
+				this.max_depth=0;
+				for (var i=0 ; i<this.cells.length ; i++) {
+					if (this.cells[i].depth > this.max_depth) { this.max_depth = this.cells[i].depth; }
 				}
-				return max_depth;
+				return this.max_depth;
 			}
 
 			// This will create a simple square maze
-			function make_square_maze_base(xsize,ysize,all_points,all_walls) {
+			Maze.base_styles.square = function(xsize,ysize,all_points,all_walls) {
 				// points_tracker[x][y] = point - this exists only as a tool to
 				// keep track of points for wall building.
 				var points_tracker = Array(xsize+1);
@@ -314,7 +363,7 @@
 
 			// Triangle maze - on odd rows the points are in odd columns,
 			// in even rows the points are in even columns.
-			function make_triangle_maze_base(xsize,ysize,all_points,all_walls) {
+			Maze.base_styles.triangle = function(xsize,ysize,all_points,all_walls) {
 				// points_tracker[x][y] = point - this exists only as a tool to
 				// keep track of points for wall building.
 				var points_tracker = Array(xsize+1);
@@ -370,7 +419,7 @@
 
 			// To ease the face-finding algorithm, we can sort the walls at
 			// each point in order of angle.
-			function sort_walls_for_points(points) {
+			Maze.prototype.sort_walls_for_points = function(points) {
 				for (var i = 0 ; i < points.length ; i++) {
 					var point = points[i];
 					// array of arrays: [wall, angle]
@@ -388,7 +437,9 @@
 				}
 			}
 
-			function find_faces(point, all_cells) {
+			// Finds all faces attached to a point that aren't yet "found"
+			// and adds them to an array.
+			Maze.prototype.find_faces = function(point, all_cells) {
 				for (var i=0 ; i<point.walls.length ; i++) {
 					var wall = point.walls[i];
 					if (!wall.traversed(point,wall.other_end(point))) {
@@ -409,7 +460,7 @@
 			}
 
 			// Find the upper left starting cell
-			function find_start_cell(points) {
+			Maze.prototype.find_start_cell = function(points) {
 				for (var j=0 ; j<points.length ; j++) {
 					var point = points[j];
 					if (point.x==0 && point.y==0) {
@@ -419,7 +470,7 @@
 			}
 
 			// Find the upper left starting cell
-			function find_end_cell(points) {
+			Maze.prototype.find_end_cell = function(points) {
 				for (var j=0 ; j<points.length ; j++) {
 					var point = points[j];
 					if (point.x==xsize && point.y==ysize) {
@@ -428,33 +479,19 @@
 				}
 			}
 
-			// Find ending depth
-			function find_end_cell_depth(points) {
-				var end_cell = find_end_cell(points);
-				return end_cell.depth;
-			}
-
-			// Now that we have all this, make a maze through the cells
-			function make_maze(points) {
-				// Find the opposite corners
-				var start_cell, end_cell;
-
-				start_cell = find_start_cell(points);
-				end_cell = find_end_cell(points);
-
-				make_maze_recursive(start_cell,null,0);
-
+			// Opens the corners - knocks down walls to create a start and
+			// end for the maze.
+			Maze.prototype.open_corners = function() {
 				// open opposite corners
-				for (var j=0 ; j<start_cell.walls.length ; j++) {
-					var wall = start_cell.walls[j];
+				for (var j=0 ; j<this.start_cell.walls.length ; j++) {
+					var wall = this.start_cell.walls[j];
 					if (wall.cells.length==1 && !wall.is_open()) {
 						wall.open();
 						break;
 					}
 				}
-
-				for (var j=end_cell.walls.length-1 ; j>=0 ; j--) {
-					var wall = end_cell.walls[j];
+				for (var j=this.end_cell.walls.length-1 ; j>=0 ; j--) {
+					var wall = this.end_cell.walls[j];
 					if (wall.cells.length==1 && !wall.is_open()) {
 						wall.open();
 						break;
@@ -595,52 +632,20 @@
 
 			var xsize=parseInt(args['xsize']);
 			var ysize=parseInt(args['ysize']);
+			var maze_style = args['style'];
 			if (!xsize) xsize=10;
 			if (!ysize) ysize=10;
+			if (!maze_style) maze_style='square';
 
 			// Actually makes the maze
 			function make_a_maze() {
-				// An array with every single point
-				var all_points = [];
-
-				// An array with every single wall
-				var all_walls = [];
-
-				// An array to keep track of all cells
-				var all_cells = [];
-
-				// This will create a set of points and walls
-				make_triangle_maze_base(xsize,ysize,all_points,all_walls);
-				//make_square_maze_base(xsize,ysize,all_points,all_walls);
-
-				// We now have a complete set of points and walls, we need to
-				// walk that data structure and determine a set of cells.
-				// In graph parlance, points == vertices, walls == edges, and
-				// cells == faces.
-
-				// There's a better more efficient way to do this - figure it
-				// out later.
-				// TODO: figure out a more efficient way to do this
-				sort_walls_for_points(all_points);
-				for (var j=0 ; j<all_points.length ; j++) {
-					find_faces(all_points[j], all_cells);
-				}
-
-				// At this point, we're ready to actually make a maze.
-				// make_maze will determine the starting point at the upper
-				// left.
-				make_maze(all_points);
+				var maze = new Maze(xsize, ysize, (maze_style=='triangle' ?  Maze.base_styles.triangle : Maze.base_styles.square), Maze.maze_styles.recursive);
 
 				// With the maze created, we'll display it
 				var svg = create_svg_element("svg-container");
-
-				var max_depth = find_max_depth(all_cells);
-				var end_depth = find_end_cell_depth(all_points);
-				draw_gradient_bg(end_depth, max_depth, svg);
-
-				draw_cell_depths(all_cells, xsize, ysize, max_depth, svg);
-
-				draw_walls(all_walls, xsize, ysize, svg);
+				draw_gradient_bg(maze.end_depth, maze.max_depth, svg);
+				draw_cell_depths(maze.cells, maze.xsize, maze.ysize, maze.max_depth, svg);
+				draw_walls(maze.walls, maze.xsize, maze.ysize, svg);
 			}
 
 			add_body_onload(make_a_maze);
