@@ -308,17 +308,17 @@
 				this.end_depth = this.end_cell.depth;
 			}
 
-			// To create a maze, we need to move around until we're back to
-			// the original point.
-
-			// If performed recursively, this algorithm is simple...
 			Maze.base_styles = {};
 			Maze.maze_styles = {};
 
+			// To create a maze, we need to move around until we're back to
+			// the original point.  There's enough information stored in
+			// each cell to perform this algorithm non-recursively in a
+			// while loop.
+			// If performed recursively, this algorithm is simple...
 			Maze.maze_styles.recursive = function(cell,entry_wall,depth) {
-
 				cell.depth=depth;
-
+				cell.entry=entry_wall;
 				// Now, go through the surrounding cells and recurse
 				for (var k=0 ; k<cell.perm.length ; k++) {
 					var wall_num = cell.perm[k];
