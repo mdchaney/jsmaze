@@ -56,6 +56,15 @@
 				return decodeURIComponent(v.replace(/\+/g,'%20'));
 			}
 
+			// Easily add functions to run at load time
+			function add_body_onload(func) {
+				var old_body_onload=window.onload;
+				window.onload=function() {
+					if (old_body_onload) { old_body_onload(); }
+					func();
+				}
+			}
+
 			// Gives us a random permutation.  This is Durstenfeld's
 			// version of Knuth's shuffle, with in-place swapping.
 			function random_perm(len) {
@@ -256,13 +265,8 @@
 			// To create a maze, we need to move around until we're back to
 			// the original point.
 
-			var maxdepth=0;
-
 			// If performed recursively, this algorithm is simple...
-			function make_maze(cell,entry_wall,depth) {
-
-				// update max depth
-				if (depth>maxdepth) maxdepth=depth;
+			function make_maze_recursive(cell,entry_wall,depth) {
 
 				cell.depth=depth;
 
@@ -272,23 +276,18 @@
 					var neighbor = cell.walls[wall_num].neighbor(cell);
 					if (neighbor && !neighbor.visited()) {
 						cell.walls[wall_num].open();
-						make_maze(neighbor,cell.walls[wall_num],depth+1);
+						make_maze_recursive(neighbor,cell.walls[wall_num],depth+1);
 					}
 				}
 			}
 
-			var args=get_args();
-
-			var xsize=parseInt(args['xsize'])+1;
-			var ysize=parseInt(args['ysize'])+1;
-			if (!xsize) xsize=10;
-			if (!ysize) ysize=10;
-
-			// An array with every single point
-			var all_points = [];
-
-			// An array with every single wall
-			var all_walls = [];
+			function find_max_depth(cells) {
+				var max_depth=0;
+				for (var i=0 ; i<cells.length ; i++) {
+					if (cells[i].depth > max_depth) { max_depth = cells[i].depth; }
+				}
+				return max_depth;
+			}
 
 			// This will create a simple square maze
 			function make_square_maze_base(xsize,ysize,all_points,all_walls) {
@@ -315,7 +314,7 @@
 
 			// Triangle maze - on odd rows the points are in odd columns,
 			// in even rows the points are in even columns.
-			function make_triangle_maze_base(xsize,ysize,points_tracker,all_walls) {
+			function make_triangle_maze_base(xsize,ysize,all_points,all_walls) {
 				// points_tracker[x][y] = point - this exists only as a tool to
 				// keep track of points for wall building.
 				var points_tracker = Array(xsize+1);
@@ -369,36 +368,27 @@
 				}
 			}
 
-			make_triangle_maze_base(xsize,ysize,all_points,all_walls);
-			//make_square_maze_base(xsize,ysize,all_points,all_walls);
-
 			// To ease the face-finding algorithm, we can sort the walls at
 			// each point in order of angle.
-			for (var i = 0 ; i < all_points.length ; i++) {
-				var point = all_points[i];
-				// array of arrays: [wall, angle]
-				var walls = [];
-				for (var j = 0 ; j < point.walls.length ; j++) {
-					var wall = point.walls[j];
-					walls.push([wall,point.angle_to(wall.other_end(point))]);
-				}
-				function wall_sorter(a,b) { return(a[1]-b[1]); }
-				walls.sort(wall_sorter);
-				point.walls = [];
-				for (var j = 0 ; j < walls.length ; j++) {
-					point.walls.push(walls[j][0]);
+			function sort_walls_for_points(points) {
+				for (var i = 0 ; i < points.length ; i++) {
+					var point = points[i];
+					// array of arrays: [wall, angle]
+					var walls = [];
+					for (var j = 0 ; j < point.walls.length ; j++) {
+						var wall = point.walls[j];
+						walls.push([wall,point.angle_to(wall.other_end(point))]);
+					}
+					function wall_sorter(a,b) { return(a[1]-b[1]); }
+					walls.sort(wall_sorter);
+					point.walls = [];
+					for (var j = 0 ; j < walls.length ; j++) {
+						point.walls.push(walls[j][0]);
+					}
 				}
 			}
 
-			// We now have a complete set of points and walls, we need to
-			// walk that data structure and determine a set of cells.
-			// In graph parlance, points == vertices, walls == edges, and
-			// cells == faces.
-
-			// An array to keep track of all cells
-			var all_cells = [];
-
-			function walk_walls(point, all_cells) {
+			function find_faces(point, all_cells) {
 				for (var i=0 ; i<point.walls.length ; i++) {
 					var wall = point.walls[i];
 					if (!wall.traversed(point,wall.other_end(point))) {
@@ -418,43 +408,242 @@
 				}
 			}
 
-			// There's a better more efficient way to do this - figure it
-			// out later.
-			// TODO: figure out a more efficient way to do this
-			for (var j=0 ; j<all_points.length ; j++) {
-				walk_walls(all_points[j], all_cells);
+			// Find the upper left starting cell
+			function find_start_cell(points) {
+				for (var j=0 ; j<points.length ; j++) {
+					var point = points[j];
+					if (point.x==0 && point.y==0) {
+						return point.walls[0].cells[0];
+					}
+				}
+			}
+
+			// Find the upper left starting cell
+			function find_end_cell(points) {
+				for (var j=0 ; j<points.length ; j++) {
+					var point = points[j];
+					if (point.x==xsize && point.y==ysize) {
+						return point.walls[0].cells[0];
+					}
+				}
+			}
+
+			// Find ending depth
+			function find_end_cell_depth(points) {
+				var end_cell = find_end_cell(points);
+				return end_cell.depth;
 			}
 
 			// Now that we have all this, make a maze through the cells
-			make_maze(all_cells[0],null,0);
+			function make_maze(points) {
+				// Find the opposite corners
+				var start_cell, end_cell;
 
-			// The depth of the "exit" cell
-			var end_depth=null;
+				start_cell = find_start_cell(points);
+				end_cell = find_end_cell(points);
 
-			// Finally, open up the opposite corners for aesthetics
-			var found_one=0;
-			for (var j=0 ; j<all_points.length ; j++) {
-				var point = all_points[j];
-				if (point.x==0 && point.y==0) {
-					for (var i=0 ; i<point.walls.length ; i++) {
-						if (!point.walls[i].is_open()) {
-							point.walls[i].open();
-							found_one++;
-							break;
-						}
-					}
-				} else if (point.x==xsize && point.y==ysize) {
-					for (var i=point.walls.length-1 ; i>=0 ; i--) {
-						if (!point.walls[i].is_open()) {
-							point.walls[i].open();
-							end_depth = point.walls[i].cells[0].depth;
-							found_one++;
-							break;
-						}
+				make_maze_recursive(start_cell,null,0);
+
+				// open opposite corners
+				for (var j=0 ; j<start_cell.walls.length ; j++) {
+					var wall = start_cell.walls[j];
+					if (wall.cells.length==1 && !wall.is_open()) {
+						wall.open();
+						break;
 					}
 				}
-				if (found_one>1) { break; }
+
+				for (var j=end_cell.walls.length-1 ; j>=0 ; j--) {
+					var wall = end_cell.walls[j];
+					if (wall.cells.length==1 && !wall.is_open()) {
+						wall.open();
+						break;
+					}
+				}
 			}
+
+			//////////////////////////////////////////////////////////////
+			//                                                          //
+			//       Everything from here down pertains to display      //
+			//                                                          //
+			//////////////////////////////////////////////////////////////
+
+			// Creates an svg element inside a container div
+			function create_svg_element(div_id) {
+				var container_div = document.getElementById(div_id);
+				var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+				svg.setAttribute("version", "1.2");
+				svg.setAttribute("baseProfile", "tiny");
+				svg.setAttribute("width", "100%");
+				svg.setAttribute("height", "100%");
+				container_div.appendChild(svg);
+				return svg;
+			}
+
+			// Given the number of cells and svg, compute a width for
+			// a single cell.
+			function xmult_for(xsize, svg) {
+				var container_xsize = svg.offsetWidth;
+				return container_xsize / (xsize + 2);
+			}
+
+			// Given the number of cells and svg, compute a height for
+			// a single cell.
+			function ymult_for(ysize, svg) {
+				var container_ysize = svg.offsetHeight;
+				return container_ysize / (ysize + 2);
+			}
+
+			// Draw the background for the maze
+			function draw_gradient_bg(end_depth, max_depth, svg) {
+				var defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+				defs.setAttribute('id', 'svgdefs');
+				svg.appendChild(defs);
+
+				var lg = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+				lg.setAttribute('id', 'svgbg');
+				lg.setAttribute('x1', '0%');
+				lg.setAttribute('x2', '100%');
+				lg.setAttribute('y1', '0%');
+				lg.setAttribute('y2', '100%');
+				defs.appendChild(lg);
+
+				var stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+				stop1.setAttribute('id', 'stop1');
+				stop1.setAttribute('offset', '0%');
+				stop1.setAttribute('stop-color', 'rgb(0,0,255)');
+				lg.appendChild(stop1);
+
+				var stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+				stop2.setAttribute('id', 'stop2');
+				stop2.setAttribute('offset', '100%');
+				stop2.setAttribute('stop-color', 'rgb(0,0,' + (255-Math.floor((end_depth/max_depth)*255)) + ')');
+				lg.appendChild(stop2);
+
+				var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+				r.setAttribute("x", 0);
+				r.setAttribute("y", 0);
+				r.setAttribute("width", svg.offsetWidth);
+				r.setAttribute("height", svg.offsetHeight);
+				r.setAttribute("fill", 'url(#svgbg)');
+				r.setAttribute("stroke", 'rgb(0,0,255)');
+				r.setAttribute("stroke-width", "1");
+				svg.appendChild(r);
+			}
+
+			// Draws the cells shaded according to depth, with
+			// light blue being "shallow" and black being "deep"
+			function draw_cell_depths(cells, xsize, ysize, max_depth, svg) {
+				var xmult = xmult_for(xsize, svg);
+				var ymult = ymult_for(ysize, svg);
+				for (var x=0 ; x < cells.length ; x++) {
+					var cell = cells[x];
+					var points = cell.vertices();
+					var points_list = [];
+					for (var i=0 ; i < points.length ; i++) {
+						points_list.push("" + Math.floor(points[i].x * xmult + xmult) + "," + Math.floor(points[i].y * ymult + ymult));
+					}
+					var p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+					p.setAttribute("points", points_list.join(" "));
+					p.setAttribute("fill", 'rgb(0,0,' + (255-Math.floor((cell.depth/max_depth)*255)) + ')');
+					p.setAttribute("stroke", 'rgb(0,0,' + (255-Math.floor((cell.depth/max_depth)*255)) + ')');
+					p.setAttribute("stroke-width", "1");
+					svg.appendChild(p);
+				}
+			}
+
+			// Draws a set of walls on an svg
+			function draw_walls(walls, xsize, ysize, svg) {
+				var xmult = xmult_for(xsize, svg);
+				var ymult = ymult_for(ysize, svg);
+				for (var x=0 ; x < walls.length ; x++) {
+					var wall = walls[x];
+					if (!wall.is_open()) {
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+						l.setAttribute("x1", wall.points[0].x * xmult + xmult);
+						l.setAttribute("y1", wall.points[0].y * ymult + ymult);
+						l.setAttribute("x2", wall.points[1].x * xmult + xmult);
+						l.setAttribute("y2", wall.points[1].y * ymult + ymult);
+						l.setAttribute("stroke", "#ff0008");
+						l.setAttribute("stroke-width", "1");
+						svg.appendChild(l);
+					}
+				}
+			}
+
+			// This code is useful for debugging the face-finding
+			// algorithm.  It puts a red dot in the middle of every
+			// face.
+			function show_cell_centers(cells, xsize, ysize, svg) {
+				var xmult = xmult_for(xsize, svg);
+				var ymult = ymult_for(ysize, svg);
+				for (var x=0 ; x< cells.length ; x++) {
+					var cell = cells[x];
+					var center = cell.center();
+					var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+					c.setAttribute("cx", center.x * xmult + xmult/2);
+					c.setAttribute("cy", center.y * ymult + ymult/2);
+					c.setAttribute("r", 2);
+					c.setAttribute("stroke", "#ff0008");
+					c.setAttribute("stroke-width", "1");
+					svg.appendChild(c);
+				}
+			}
+
+			// Leaving these as globals
+			var args=get_args();
+
+			var xsize=parseInt(args['xsize']);
+			var ysize=parseInt(args['ysize']);
+			if (!xsize) xsize=10;
+			if (!ysize) ysize=10;
+
+			// Actually makes the maze
+			function make_a_maze() {
+				// An array with every single point
+				var all_points = [];
+
+				// An array with every single wall
+				var all_walls = [];
+
+				// An array to keep track of all cells
+				var all_cells = [];
+
+				// This will create a set of points and walls
+				make_triangle_maze_base(xsize,ysize,all_points,all_walls);
+				//make_square_maze_base(xsize,ysize,all_points,all_walls);
+
+				// We now have a complete set of points and walls, we need to
+				// walk that data structure and determine a set of cells.
+				// In graph parlance, points == vertices, walls == edges, and
+				// cells == faces.
+
+				// There's a better more efficient way to do this - figure it
+				// out later.
+				// TODO: figure out a more efficient way to do this
+				sort_walls_for_points(all_points);
+				for (var j=0 ; j<all_points.length ; j++) {
+					find_faces(all_points[j], all_cells);
+				}
+
+				// At this point, we're ready to actually make a maze.
+				// make_maze will determine the starting point at the upper
+				// left.
+				make_maze(all_points);
+
+				// With the maze created, we'll display it
+				var svg = create_svg_element("svg-container");
+
+				var max_depth = find_max_depth(all_cells);
+				var end_depth = find_end_cell_depth(all_points);
+				draw_gradient_bg(end_depth, max_depth, svg);
+
+				draw_cell_depths(all_cells, xsize, ysize, max_depth, svg);
+
+				draw_walls(all_walls, xsize, ysize, svg);
+			}
+
+			add_body_onload(make_a_maze);
 
 			//]]>
 		</script>
@@ -470,99 +659,6 @@
 
 			<script type="text/javascript">
 				// <![CDATA[
-					var container_div = document.getElementById("svg-container");
-					var mySvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-					mySvg.setAttribute("version", "1.2");
-					mySvg.setAttribute("baseProfile", "tiny");
-					mySvg.setAttribute("width", "100%");
-					mySvg.setAttribute("height", "100%");
-					container_div.appendChild(mySvg);
-
-					var container_xsize = container_div.offsetWidth;
-					var xmult = container_xsize / (xsize + 2);
-					var container_ysize = container_div.offsetHeight;
-					var ymult = container_ysize / (ysize + 2);
-
-					var defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-					defs.setAttribute('id', 'svgdefs');
-					mySvg.appendChild(defs);
-
-
-					var lg = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
-					lg.setAttribute('id', 'svgbg');
-					lg.setAttribute('x1', '0%');
-					lg.setAttribute('x2', '100%');
-					lg.setAttribute('y1', '0%');
-					lg.setAttribute('y2', '100%');
-					defs.appendChild(lg);
-
-					var stop1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-					stop1.setAttribute('id', 'stop1');
-					stop1.setAttribute('offset', '0%');
-					stop1.setAttribute('stop-color', 'rgb(0,0,255)');
-					lg.appendChild(stop1);
-
-					var stop2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-					stop2.setAttribute('id', 'stop2');
-					stop2.setAttribute('offset', '100%');
-					stop2.setAttribute('stop-color', 'rgb(0,0,' + (255-Math.floor((end_depth/maxdepth)*255)) + ')');
-					lg.appendChild(stop2);
-
-					var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-					r.setAttribute("x", 0);
-					r.setAttribute("y", 0);
-					r.setAttribute("width", container_xsize);
-					r.setAttribute("height", container_ysize);
-					r.setAttribute("fill", 'url(#svgbg)');
-					r.setAttribute("stroke", 'rgb(0,0,255)');
-					r.setAttribute("stroke-width", "1");
-					mySvg.appendChild(r);
-
-					// First, draw the depth
-					for (var x=0 ; x < all_cells.length ; x++) {
-						var cell = all_cells[x];
-						var points = cell.vertices();
-						var points_list = [];
-						for (var i=0 ; i < points.length ; i++) {
-							points_list.push("" + Math.floor(points[i].x * xmult + xmult) + "," + Math.floor(points[i].y * ymult + ymult));
-						}
-						var p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-						p.setAttribute("points", points_list.join(" "));
-						p.setAttribute("fill", 'rgb(0,0,' + (255-Math.floor((cell.depth/maxdepth)*255)) + ')');
-						p.setAttribute("stroke", 'rgb(0,0,' + (255-Math.floor((cell.depth/maxdepth)*255)) + ')');
-						p.setAttribute("stroke-width", "1");
-						mySvg.appendChild(p);
-					}
-
-					// Now, draw walls.
-					for (var x=0 ; x < all_walls.length ; x++) {
-						var wall = all_walls[x];
-						if (!wall.is_open()) {
-							var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-							l.setAttribute("x1", wall.points[0].x * xmult + xmult);
-							l.setAttribute("y1", wall.points[0].y * ymult + ymult);
-							l.setAttribute("x2", wall.points[1].x * xmult + xmult);
-							l.setAttribute("y2", wall.points[1].y * ymult + ymult);
-							l.setAttribute("stroke", "#ff0008");
-							l.setAttribute("stroke-width", "1");
-							mySvg.appendChild(l);
-						}
-					}
-
-//					// This code is useful for debugging the face-finding
-//					// algorithm.  It puts a red dot in the middle of every
-//					// face.
-//					for (var x=0 ; x< all_cells.length ; x++) {
-//						var cell = all_cells[x];
-//						var center = cell.center();
-//						var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-//						c.setAttribute("cx", center.x * xmult + xmult/2);
-//						c.setAttribute("cy", center.y * ymult + ymult/2);
-//						c.setAttribute("r", 2);
-//						c.setAttribute("stroke", "#ff0008");
-//						c.setAttribute("stroke-width", "1");
-//						mySvg.appendChild(c);
-//					}
 				//]]>
 			</script>
 
