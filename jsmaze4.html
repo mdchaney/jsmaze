@@ -215,6 +215,8 @@
 				this.current_perm=0;
 				this.entry=undefined;
 				this.depth=undefined;
+				// Used in drunk walk algorithm
+				this.serial=undefined;
 			}
 
 			// Returns true if the cell has an open wall
@@ -299,7 +301,7 @@
 				// the start and end cells, then generate the maze.
 				this.start_cell = this.find_start_cell(this.points);
 				this.end_cell = this.find_end_cell(this.points);
-				this.maze_style(this.start_cell,null,0);
+				this.maze_style();
 				// Purely for aesthetics, open the corners
 				this.open_corners();
 				// And set the max depth and end depth, which are useful for
@@ -316,16 +318,97 @@
 			// each cell to perform this algorithm non-recursively in a
 			// while loop.
 			// If performed recursively, this algorithm is simple...
-			Maze.maze_styles.recursive = function(cell,entry_wall,depth) {
-				cell.depth=depth;
-				cell.entry=entry_wall;
-				// Now, go through the surrounding cells and recurse
-				for (var k=0 ; k<cell.perm.length ; k++) {
-					var wall_num = cell.perm[k];
-					var neighbor = cell.walls[wall_num].neighbor(cell);
-					if (neighbor && !neighbor.visited()) {
-						cell.walls[wall_num].open();
-						arguments.callee(neighbor,cell.walls[wall_num],depth+1);
+			Maze.maze_styles.recursive = function() {
+				function recursive_maze(cell,entry_wall,depth) {
+					cell.depth=depth;
+					cell.entry=entry_wall;
+					// Now, go through the surrounding cells and recurse
+					for (var k=0 ; k<cell.perm.length ; k++) {
+						var wall_num = cell.perm[k];
+						var neighbor = cell.walls[wall_num].neighbor(cell);
+						if (neighbor && !neighbor.visited()) {
+							cell.walls[wall_num].open();
+							arguments.callee(neighbor,cell.walls[wall_num],depth+1);
+						}
+					}
+				}
+
+				recursive_maze(this.start_cell,null,0);
+			}
+
+			// Create a maze using the drunk walk algorithm.  In this
+			// algorithm, we create random segments that grow like the
+			// recursive algorithm above until they connect to another
+			// existing segment.  Each cell has a "serial" number that
+			// specifies which segment it belongs to, so as a segment grows
+			// it can see if it's touching "self" or "other".  It will
+			// connect to "other" and quit growing.
+			Maze.maze_styles.drunk_walk = function() {
+				function drunk_walk(cell, entry_wall, serial, depth) {
+					pieces_left--;
+					cell.serial = serial;
+					if (depth==0) return false;
+					for (var k=0 ; k<cell.perm.length ; k++) {
+						var wall_num = cell.perm[k];
+						var wall = cell.walls[wall_num];
+						if (wall != entry_wall && !wall.is_open()) {
+							var neighbor = wall.neighbor(cell);
+							if (neighbor) {
+								if (!neighbor.serial) {
+									wall.open();
+									var ret=arguments.callee(neighbor,wall,serial,depth-1);
+									if (!ret) return false;
+								} else if (neighbor.serial != serial) {
+									wall.open();
+									return false;
+								}
+							}
+						}
+					}
+					return true;
+				}
+
+				// Note that this is a scoped variable - the "drunk_walk"
+				// function refers to it.
+				var pieces_left = this.cells.length;
+
+				// Note that this is declared here but the drunk_walk
+				// function has "serial" as an argument, also.
+				var serial = 1;
+
+				// Grow an initial segment starting at a random location.
+				// The length of the segment is up to 1/10th of the
+				// available cells + 5.
+				drunk_walk(this.cells[Math.floor(Math.random()*pieces_left)], null, serial++, Math.floor(Math.random()*pieces_left/10)+5);
+
+				// Now, keep growing segments until we run out of pieces
+				while (pieces_left>0) {
+					var next_start=Math.floor(Math.random()*pieces_left)+1;
+					var empty_found=0, i;
+					for (i=0 ; i<this.cells.length ; i++) {
+						if (!this.cells[i].serial) {
+							empty_found++;
+							if (empty_found >= next_start) {
+								drunk_walk(this.cells[i], null, serial++, 99999999);
+								break;
+							}
+						}
+					}
+				}
+
+				this.find_depth(this.start_cell, null, 0);
+			}
+
+			// Recursively finds the depths of all cells given a starting
+			// point.  Make sure to do this before opening the start and
+			// end.  This will also point all "entry walls" to the
+			// beginning.
+			Maze.prototype.find_depth = function(cell,entry_wall,depth) {
+				cell.depth = depth;
+				cell.entry = entry_wall;
+				for (var k=0 ; k<cell.walls.length; k++) {
+					if (cell.walls[k] != entry_wall && cell.walls[k].is_open()) {
+						arguments.callee(cell.walls[k].neighbor(cell),cell.walls[k],depth+1);
 					}
 				}
 			}
@@ -633,13 +716,15 @@
 			var xsize=parseInt(args['xsize']);
 			var ysize=parseInt(args['ysize']);
 			var maze_style = args['style'];
+			var maze_algorithm = args['algo'];
 			if (!xsize) xsize=10;
 			if (!ysize) ysize=10;
 			if (!maze_style) maze_style='square';
+			if (!maze_algorithm) maze_algorithm='recursive';
 
 			// Actually makes the maze
 			function make_a_maze() {
-				var maze = new Maze(xsize, ysize, (maze_style=='triangle' ?  Maze.base_styles.triangle : Maze.base_styles.square), Maze.maze_styles.recursive);
+				var maze = new Maze(xsize, ysize, (maze_style=='triangle' ?  Maze.base_styles.triangle : Maze.base_styles.square), (maze_algorithm=='drunk_walk' ? Maze.maze_styles.drunk_walk : Maze.maze_styles.recursive));
 
 				// With the maze created, we'll display it
 				var svg = create_svg_element("svg-container");
