@@ -213,7 +213,7 @@
 				}
 				this.perm=random_perm(this.walls.length);
 				this.current_perm=0;
-				this.entry=undefined;
+				this.entry_wall=undefined;
 				this.depth=undefined;
 				// Used in drunk walk algorithm
 				this.serial=undefined;
@@ -321,7 +321,7 @@
 			Maze.maze_styles.recursive = function() {
 				function recursive_maze(cell,entry_wall,depth) {
 					cell.depth=depth;
-					cell.entry=entry_wall;
+					cell.entry_wall=entry_wall;
 					// Now, go through the surrounding cells and recurse
 					for (var k=0 ; k<cell.perm.length ; k++) {
 						var wall_num = cell.perm[k];
@@ -405,7 +405,7 @@
 			// beginning.
 			Maze.prototype.find_depth = function(cell,entry_wall,depth) {
 				cell.depth = depth;
-				cell.entry = entry_wall;
+				cell.entry_wall = entry_wall;
 				for (var k=0 ; k<cell.walls.length; k++) {
 					if (cell.walls[k] != entry_wall && cell.walls[k].is_open()) {
 						arguments.callee(cell.walls[k].neighbor(cell),cell.walls[k],depth+1);
