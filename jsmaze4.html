@@ -276,8 +276,8 @@
 				this.points = [];
 				this.walls = [];
 				this.cells = [];
-				this.start_cell=null;
-				this.end_cell=null;
+				this.start_wall=null;
+				this.end_wall=null;
 				this.max_depth=null;
 				this.end_depth=null;
 				this.base_style=base_style;
@@ -299,15 +299,15 @@
 				}
 				// At this point, we're ready to actually make a maze.  Get
 				// the start and end cells, then generate the maze.
-				this.start_cell = this.find_start_cell(this.points);
-				this.end_cell = this.find_end_cell(this.points);
+				this.start_wall = this.find_start_wall(this.points);
+				this.end_wall = this.find_end_wall(this.points);
 				this.maze_style();
 				// Purely for aesthetics, open the corners
 				this.open_corners();
 				// And set the max depth and end depth, which are useful for
 				// rendering.
 				this.find_max_depth();
-				this.end_depth = this.end_cell.depth;
+				this.end_depth = this.end_cell().depth;
 			}
 
 			Maze.base_styles = {};
@@ -333,7 +333,7 @@
 					}
 				}
 
-				recursive_maze(this.start_cell,null,0);
+				recursive_maze(this.start_cell(),null,0);
 			}
 
 			// Create a maze using the drunk walk algorithm.  In this
@@ -396,7 +396,7 @@
 					}
 				}
 
-				this.find_depth(this.start_cell, null, 0);
+				this.find_depth(this.start_cell(), null, 0);
 			}
 
 			// Recursively finds the depths of all cells given a starting
@@ -419,6 +419,14 @@
 					if (this.cells[i].depth > this.max_depth) { this.max_depth = this.cells[i].depth; }
 				}
 				return this.max_depth;
+			}
+
+			Maze.prototype.start_cell = function() {
+				return this.start_wall.cells[0];
+			}
+
+			Maze.prototype.end_cell = function() {
+				return this.end_wall.cells[0];
 			}
 
 			// This will create a simple square maze
@@ -542,22 +550,34 @@
 				}
 			}
 
-			// Find the upper left starting cell
-			Maze.prototype.find_start_cell = function(points) {
+			// Find the upper left starting wall
+			Maze.prototype.find_start_wall = function(points) {
 				for (var j=0 ; j<points.length ; j++) {
 					var point = points[j];
 					if (point.x==0 && point.y==0) {
-						return point.walls[0].cells[0];
+						var start_cell = point.walls[0].cells[0];
+						for (var j=0 ; j<start_cell.walls.length ; j++) {
+							var wall = start_cell.walls[j];
+							if (wall.cells.length==1 && !wall.is_open()) {
+								return wall;
+							}
+						}
 					}
 				}
 			}
 
-			// Find the lower right ending cell
-			Maze.prototype.find_end_cell = function(points) {
+			// Find the lower right ending wall
+			Maze.prototype.find_end_wall = function(points) {
 				for (var j=0 ; j<points.length ; j++) {
 					var point = points[j];
 					if (point.x==xsize && point.y==ysize) {
-						return point.walls[0].cells[0];
+						var end_cell = point.walls[0].cells[0];
+						for (var j=end_cell.walls.length-1 ; j>=0 ; j--) {
+							var wall = end_cell.walls[j];
+							if (wall.cells.length==1 && !wall.is_open()) {
+								return wall;
+							}
+						}
 					}
 				}
 			}
@@ -566,20 +586,8 @@
 			// end for the maze.
 			Maze.prototype.open_corners = function() {
 				// open opposite corners
-				for (var j=0 ; j<this.start_cell.walls.length ; j++) {
-					var wall = this.start_cell.walls[j];
-					if (wall.cells.length==1 && !wall.is_open()) {
-						wall.open();
-						break;
-					}
-				}
-				for (var j=this.end_cell.walls.length-1 ; j>=0 ; j--) {
-					var wall = this.end_cell.walls[j];
-					if (wall.cells.length==1 && !wall.is_open()) {
-						wall.open();
-						break;
-					}
-				}
+				this.start_wall.open();
+				this.end_wall.open();
 			}
 
 			//////////////////////////////////////////////////////////////
