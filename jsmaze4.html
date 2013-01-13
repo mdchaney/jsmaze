@@ -612,18 +612,28 @@
 				return svg;
 			}
 
+			// Get the svg's width.  The issue here is that on Firefox the
+			// svg's offsetWidth is undefined, so I need to instead get the
+			// parent's offsetWidth.
+			function svg_width(svg) {
+				return svg.offsetWidth || svg.parentNode.offsetWidth;
+			}
+
+			// Get the height of the svg.
+			function svg_height(svg) {
+				return svg.offsetHeight || svg.parentNode.offsetHeight;
+			}
+
 			// Given the number of cells and svg, compute a width for
 			// a single cell.
 			function xmult_for(xsize, svg) {
-				var container_xsize = svg.offsetWidth;
-				return container_xsize / (xsize + 2);
+				return svg_width(svg) / (xsize + 2);
 			}
 
 			// Given the number of cells and svg, compute a height for
 			// a single cell.
 			function ymult_for(ysize, svg) {
-				var container_ysize = svg.offsetHeight;
-				return container_ysize / (ysize + 2);
+				return svg_height(svg) / (ysize + 2);
 			}
 
 			// Draw the background for the maze
@@ -655,8 +665,8 @@
 				var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
 				r.setAttribute("x", 0);
 				r.setAttribute("y", 0);
-				r.setAttribute("width", svg.offsetWidth);
-				r.setAttribute("height", svg.offsetHeight);
+				r.setAttribute("width", svg_width(svg));
+				r.setAttribute("height", svg_height(svg));
 				r.setAttribute("fill", 'url(#svgbg)');
 				r.setAttribute("stroke", 'rgb(0,0,255)');
 				r.setAttribute("stroke-width", "1");
