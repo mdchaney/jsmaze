@@ -638,6 +638,45 @@
 				this.end_point = points_tracker[xsize-1][ysize];
 			}
 
+			// This will create a simple square maze
+			Maze.base_styles.squaretriangles = function(xsize,ysize,all_points,all_walls) {
+				// points_tracker[x][y] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(xsize+1);
+
+				for (var x=0 ; x<= xsize ; x+=2) {
+					points_tracker[x] = Array(ysize+1);
+					if (x>0) {
+						points_tracker[x-1] = Array(ysize+1);
+					}
+					for (var y=0 ; y<= ysize ; y+=2) {
+						points_tracker[x][y] = new Point(x,y);
+						all_points.push(points_tracker[x][y]);
+						// Build vertical walls
+						if (y>0) {
+							all_walls.push(new Wall(points_tracker[x][y-2], points_tracker[x][y]));
+						}
+						// Build horizontal walls
+						if (x>0) {
+							all_walls.push(new Wall(points_tracker[x-2][y],points_tracker[x][y]));
+							// Build diagonal walls
+							if (y>0) {
+								points_tracker[x-1][y-1] = new Point(x-1,y-1);
+								all_points.push(points_tracker[x-1][y-1]);
+								all_walls.push(new Wall(points_tracker[x-1][y-1],points_tracker[x-2][y-2]));
+								all_walls.push(new Wall(points_tracker[x-1][y-1],points_tracker[x-2][y]));
+								all_walls.push(new Wall(points_tracker[x-1][y-1],points_tracker[x][y-2]));
+								all_walls.push(new Wall(points_tracker[x-1][y-1],points_tracker[x][y]));
+							}
+						}
+					}
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[0][0];
+				this.end_point = points_tracker[xsize][ysize];
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -670,6 +709,14 @@
 					'y_multiplier': 2,
 					'max_face_size': 4,
 					'algo': Maze.base_styles.diamond
+				},
+				'squaretriangles': {
+					'min_xsize': 4,
+					'min_ysize': 4,
+					'x_multiplier': 2,
+					'y_multiplier': 2,
+					'max_face_size': 4,
+					'algo': Maze.base_styles.squaretriangles
 				}
 			};
 
