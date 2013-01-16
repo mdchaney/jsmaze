@@ -540,6 +540,66 @@
 				}
 			}
 
+			// Hexagonal maze
+			Maze.base_styles.hexagonal = function(xsize,ysize,all_points,all_walls) {
+				// Might have to adjust xsize - it should be 4+6*(k-1) wide,
+				// where k is the original xsize
+				this.xsize = 4 + 6 * (xsize - 1);
+				this.ysize = 2 * ysize;
+
+				xsize = this.xsize;
+				ysize = this.ysize;
+
+				// points_tracker[y][x] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(ysize+1);
+
+				// First, make the points - even lines
+				for (var y = 0 ; y < ysize+1 ; y += 2) {
+					points_tracker[y] = Array(xsize+1);
+					for (var x = 1 ; x < xsize+1 ; x += 6) {
+						points_tracker[y][x] = new Point(x,y);
+						all_points.push(points_tracker[y][x]);
+						points_tracker[y][x+2] = new Point(x+2,y);
+						all_points.push(points_tracker[y][x]);
+						// Build horizontal walls
+						all_walls.push(new Wall(points_tracker[y][x],points_tracker[y][x+2]));
+					}
+				}
+
+				// Next, make the points - odd lines
+				for (var y = 1 ; y < ysize+1 ; y += 2) {
+					points_tracker[y] = Array(ysize+1);
+					// First, put a lone point at 0,0
+					points_tracker[y][0] = new Point(0,y);
+					all_points.push(points_tracker[y][0]);
+					// And another lone point at the end of the line
+					points_tracker[y][xsize] = new Point(xsize,y);
+					all_points.push(points_tracker[y][xsize]);
+					for (var x = 4 ; x < xsize ; x += 6) {
+						points_tracker[y][x] = new Point(x,y);
+						all_points.push(points_tracker[y][x]);
+						points_tracker[y][x+2] = new Point(x+2,y);
+						all_points.push(points_tracker[y][x]);
+						// Build horizontal walls
+						all_walls.push(new Wall(points_tracker[y][x],points_tracker[y][x+2]));
+					}
+				}
+
+				for (var y = 0 ; y < ysize ; y += 2) {
+					for (var x = 1 ; x < xsize ; x += 6) {
+						all_walls.push(new Wall(points_tracker[y][x],points_tracker[y+1][x-1]));
+						all_walls.push(new Wall(points_tracker[y+1][x-1],points_tracker[y+2][x]));
+						all_walls.push(new Wall(points_tracker[y][x+2],points_tracker[y+1][x+3]));
+						all_walls.push(new Wall(points_tracker[y+1][x+3],points_tracker[y+2][x+2]));
+					}
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[1][0];
+				this.end_point = points_tracker[ysize][xsize-1];
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -556,6 +616,14 @@
 					'y_multiplier': 1,
 					'max_face_size': 3,
 					'algo': Maze.base_styles.triangle
+				},
+				'hexagonal': {
+					'min_xsize': 4,
+					'min_ysize': 4,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 6,
+					'algo': Maze.base_styles.hexagonal
 				}
 			};
 
