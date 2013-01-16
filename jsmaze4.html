@@ -683,8 +683,23 @@
 			// Find the upper left starting wall
 			Maze.prototype.find_start_wall = function(points) {
 				var start_cell = this.start_point.walls[0].cells[0];
-				for (var k=0 ; k<start_cell.walls.length ; k++) {
-					var wall = start_cell.walls[k];
+				// First, try to find a horizontal wall
+				for (var k=0 ; k<this.start_point.walls.length ; k++) {
+					var wall = this.start_point.walls[k];
+					if (wall.cells.length==1 && !wall.is_open() && wall.other_end(this.start_point).y == this.start_point.y) {
+						return wall;
+					}
+				}
+				// If that doesn't work, find one that is at the upper left
+				for (var k=0 ; k<this.start_point.walls.length ; k++) {
+					var wall = this.start_point.walls[k];
+					if (wall.cells.length==1 && !wall.is_open() && wall.other_end(this.start_point).x <= this.start_point.x) {
+						return wall;
+					}
+				}
+				// And if that doesn't work, grab the first one that I can
+				for (var k=0 ; k<this.start_point.walls.length ; k++) {
+					var wall = this.start_point.walls[k];
 					if (wall.cells.length==1 && !wall.is_open()) {
 						return wall;
 					}
@@ -694,8 +709,23 @@
 			// Find the lower right ending wall
 			Maze.prototype.find_end_wall = function(points) {
 				var end_cell = this.end_point.walls[0].cells[0];
-				for (var k=end_cell.walls.length-1 ; k>=0 ; k--) {
-					var wall = end_cell.walls[k];
+				// First, try to find one that's flat on the bottom
+				for (var k=0 ; k<this.end_point.walls.length ; k++) {
+					var wall = this.end_point.walls[k];
+					if (wall.cells.length==1 && !wall.is_open() && wall.other_end(this.end_point).y == this.end_point.y) {
+						return wall;
+					}
+				}
+				// If that doesn't work, try to find one that's at the lower right
+				for (var k=0 ; k<this.end_point.walls.length ; k++) {
+					var wall = this.end_point.walls[k];
+					if (wall.cells.length==1 && !wall.is_open() && wall.other_end(this.end_point).x >= this.end_point.x) {
+						return wall;
+					}
+				}
+				// And if that doesn't work just grab one
+				for (var k=this.end_point.walls.length-1 ; k>=0 ; k--) {
+					var wall = this.end_point.walls[k];
 					if (wall.cells.length==1 && !wall.is_open()) {
 						return wall;
 					}
