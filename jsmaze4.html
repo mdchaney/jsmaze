@@ -278,6 +278,8 @@
 				this.points = [];
 				this.walls = [];
 				this.cells = [];
+				this.start_point=null;
+				this.end_point=null;
 				this.start_wall=null;
 				this.end_wall=null;
 				this.max_depth=null;
@@ -469,6 +471,10 @@
 						}
 					}
 				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[0][0];
+				this.end_point = points_tracker[xsize][ysize];
 			}
 
 			// Triangle maze - on odd rows the points are in odd columns,
@@ -525,6 +531,13 @@
 						}
 					}
 				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[0][0];
+				for (var x=xsize-1 ; x>0 ; x--) {
+					this.end_point = points_tracker[x][ysize];
+					if (this.end_point) { break; }
+				}
 			}
 
 			Maze.base_styles_info = {
@@ -539,7 +552,7 @@
 				'triangle': {
 					'min_xsize': 2,
 					'min_ysize': 2,
-					'x_multiplier': 1,
+					'x_multiplier': 2,
 					'y_multiplier': 1,
 					'max_face_size': 3,
 					'algo': Maze.base_styles.triangle
@@ -601,32 +614,22 @@
 
 			// Find the upper left starting wall
 			Maze.prototype.find_start_wall = function(points) {
-				for (var j=0 ; j<points.length ; j++) {
-					var point = points[j];
-					if (point.x==0 && point.y==0) {
-						var start_cell = point.walls[0].cells[0];
-						for (var k=0 ; k<start_cell.walls.length ; k++) {
-							var wall = start_cell.walls[k];
-							if (wall.cells.length==1 && !wall.is_open()) {
-								return wall;
-							}
-						}
+				var start_cell = this.start_point.walls[0].cells[0];
+				for (var k=0 ; k<start_cell.walls.length ; k++) {
+					var wall = start_cell.walls[k];
+					if (wall.cells.length==1 && !wall.is_open()) {
+						return wall;
 					}
 				}
 			}
 
 			// Find the lower right ending wall
 			Maze.prototype.find_end_wall = function(points) {
-				for (var j=0 ; j<points.length ; j++) {
-					var point = points[j];
-					if (point.x==xsize && point.y==ysize) {
-						var end_cell = point.walls[0].cells[0];
-						for (var k=end_cell.walls.length-1 ; k>=0 ; k--) {
-							var wall = end_cell.walls[k];
-							if (wall.cells.length==1 && !wall.is_open()) {
-								return wall;
-							}
-						}
+				var end_cell = this.end_point.walls[0].cells[0];
+				for (var k=end_cell.walls.length-1 ; k>=0 ; k--) {
+					var wall = end_cell.walls[k];
+					if (wall.cells.length==1 && !wall.is_open()) {
+						return wall;
 					}
 				}
 			}
@@ -777,6 +780,28 @@
 				}
 			}
 
+			// This code is useful for debugging the face-finding
+			// algorithm.  It puts a red dot in the middle of every
+			// face.
+			function show_start_and_end_points(maze, xsize, ysize, svg) {
+				var xmult = xmult_for(xsize, svg);
+				var ymult = ymult_for(ysize, svg);
+				var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+				c.setAttribute("cx", maze.end_point.x * xmult + xmult);
+				c.setAttribute("cy", maze.end_point.y * ymult + ymult);
+				c.setAttribute("r", 2);
+				c.setAttribute("stroke", "#ff0008");
+				c.setAttribute("stroke-width", "1");
+				svg.appendChild(c);
+				var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+				c.setAttribute("cx", maze.start_point.x * xmult + xmult);
+				c.setAttribute("cy", maze.start_point.y * ymult + ymult);
+				c.setAttribute("r", 2);
+				c.setAttribute("stroke", "#ff0008");
+				c.setAttribute("stroke-width", "1");
+				svg.appendChild(c);
+			}
+
 			// Draw the solution to the maze, starting at the end wall and
 			// tracing back to the starting wall.
 			function show_maze_solution(maze, xsize, ysize, svg) {
@@ -844,6 +869,7 @@
 				draw_cell_depths(maze.cells, maze.xsize, maze.ysize, maze.max_depth, svg);
 				draw_walls(maze.walls, maze.xsize, maze.ysize, svg);
 				if (show_solution) show_maze_solution(maze, maze.xsize, maze.ysize, svg);
+				//show_start_and_end_points(maze, maze.xsize, maze.ysize, svg);
 			}
 
 			add_body_onload(make_a_maze);
