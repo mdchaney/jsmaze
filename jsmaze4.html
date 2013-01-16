@@ -600,6 +600,44 @@
 				this.end_point = points_tracker[ysize][xsize-1];
 			}
 
+			// Diamond maze
+			Maze.base_styles.diamond = function(xsize,ysize,all_points,all_walls) {
+				// points_tracker[x][y] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(xsize+1);
+
+				// First, make the points - even lines/odd cols
+				for (var x = 0 ; x < xsize+1 ; x += 2) {
+					points_tracker[x] = Array(ysize+1);
+					for (var y = 1 ; y < ysize+1 ; y += 2) {
+						points_tracker[x][y] = new Point(x,y);
+						all_points.push(points_tracker[x][y]);
+					}
+				}
+
+				// Next, make the points - odd lines/even cols
+				for (var x = 1 ; x < xsize+1 ; x += 2) {
+					points_tracker[x] = Array(ysize+1);
+					for (var y = 0 ; y < ysize+1 ; y += 2) {
+						points_tracker[x][y] = new Point(x,y);
+						all_points.push(points_tracker[x][y]);
+					}
+				}
+
+				for (var x = 1 ; x < xsize ; x += 2) {
+					for (var y = 0 ; y < ysize ; y += 2) {
+						all_walls.push(new Wall(points_tracker[x][y],points_tracker[x-1][y+1]));
+						all_walls.push(new Wall(points_tracker[x][y],points_tracker[x+1][y+1]));
+						all_walls.push(new Wall(points_tracker[x-1][y+1],points_tracker[x][y+2]));
+						all_walls.push(new Wall(points_tracker[x+1][y+1],points_tracker[x][y+2]));
+					}
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[1][0];
+				this.end_point = points_tracker[xsize-1][ysize];
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -624,6 +662,14 @@
 					'y_multiplier': 1,
 					'max_face_size': 6,
 					'algo': Maze.base_styles.hexagonal
+				},
+				'diamond': {
+					'min_xsize': 4,
+					'min_ysize': 4,
+					'x_multiplier': 2,
+					'y_multiplier': 2,
+					'max_face_size': 4,
+					'algo': Maze.base_styles.diamond
 				}
 			};
 
