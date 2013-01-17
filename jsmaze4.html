@@ -638,7 +638,8 @@
 				this.end_point = points_tracker[xsize-1][ysize];
 			}
 
-			// This will create a simple square maze
+			// This will create a square/triangle maze - each square is
+			// made of four triangles.
 			Maze.base_styles.squaretriangles = function(xsize,ysize,all_points,all_walls) {
 				// points_tracker[x][y] = point - this exists only as a tool to
 				// keep track of points for wall building.
@@ -971,9 +972,8 @@
 				}
 			}
 
-			// This code is useful for debugging the face-finding
-			// algorithm.  It puts a red dot in the middle of every
-			// face.
+			// This code is useful for debugging - it shows a red dot over
+			// the start and end points.
 			function show_start_and_end_points(maze, xsize, ysize, svg) {
 				var xmult = xmult_for(xsize, svg);
 				var ymult = ymult_for(ysize, svg);
