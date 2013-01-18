@@ -691,7 +691,7 @@
 			// so slightly just right to make the triangles equilateral.
 			// Basically, we can think of the straight squares (starting in
 			// corners and then every other square) as being rotated CCW by
-			// 30 degrees.  This can be simplified to a set of x,y offsets
+			// 15 degrees.  This can be simplified to a set of x,y offsets
 			// depending on the location of the point, basically whether x
 			// and y are odd or even.  Furthermore, since it's a perfect
 			// square the offsets need only be computed one time and
@@ -722,6 +722,10 @@
 					]
 				];
 
+				// Each square has to be moved toward the origin by twice this
+				// value for each square.  It's easy to work the math out.
+				// My method is a little ghetto, but I don't care.  It works
+				// and it's easy to understand.
 				var scale_offset = 1.0 - Math.cos(15.0*Math.PI/180.0);
 
 				// points_tracker[x][y] = point - this exists only as a tool to
