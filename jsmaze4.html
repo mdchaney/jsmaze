@@ -678,6 +678,80 @@
 				this.end_point = points_tracker[xsize][ysize];
 			}
 
+			// This will create a snub square tiling, with squares at each
+			// corner.  I totally cheat, of course.  What I make is a
+			// set of perfect squares with every other square being cut
+			// into two right triangles, the direction depending on whether
+			// the row is odd or even.  I can then rotate the squares ever
+			// so slightly just right to make the triangles equilateral.
+			// Basically, we can think of the straight squares (starting in
+			// corners and then every other square) as being rotated CCW by
+			// 30 degrees.  This can be simplified to a set of x,y offsets
+			// depending on the location of the point, basically whether x
+			// and y are odd or even.  Furthermore, since it's a perfect
+			// square the offsets need only be computed one time and
+			// applied properly to each corner.
+			Maze.base_styles.snubsquare = function(xsize,ysize,all_points,all_walls) {
+				// Need to make sure xsize and ysize are odd
+				this.xsize = this.xsize | 1;
+				this.ysize = this.ysize | 1;
+
+				xsize = this.xsize;
+				ysize = this.ysize;
+
+				// Offsets
+				var upper_right_x_offset = Math.sin(45.0*Math.PI/180.0) - Math.sin(75.0*Math.PI/180.0);
+				var upper_right_y_offset = Math.cos(45.0*Math.PI/180.0) - Math.cos(75.0*Math.PI/180.0);
+				upper_right_x_offset *= .5;
+				upper_right_y_offset *= .5;
+
+				// offsets[x][y] where "x" and "y" are 0 or 1
+				var offsets = [
+					[
+					  { x: -upper_right_x_offset, y: -upper_right_y_offset }, // 0,0
+					  { x: -upper_right_y_offset, y: upper_right_x_offset }, // 0,1
+					],
+					[
+					  { x: upper_right_y_offset, y: -upper_right_x_offset }, // 1,0
+					  { x: upper_right_x_offset, y: upper_right_y_offset }, // 1,1
+					]
+				];
+
+				// points_tracker[x][y] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(xsize+1);
+
+				for (var x=0 ; x<= xsize ; x++) {
+					points_tracker[x] = Array(ysize+1);
+					for (var y=0 ; y<= ysize ; y++) {
+						points_tracker[x][y] = new Point(x + offsets[x&1][y&1].x,y + offsets[x&1][y&1].y);
+						all_points.push(points_tracker[x][y]);
+						// Build vertical walls
+						if (y>0) {
+							all_walls.push(new Wall(points_tracker[x][y-1], points_tracker[x][y]));
+						}
+						// Build horizontal walls
+						if (x>0) {
+							all_walls.push(new Wall(points_tracker[x-1][y],points_tracker[x][y]));
+						}
+						// Now, build diagonal walls where proper.  On even columns
+						// and odd rows, build a diagonal down to the left
+						if (x>0 && !(x&1) && y&1) {
+							all_walls.push(new Wall(points_tracker[x][y],points_tracker[x-1][y-1]));
+						}
+						// On odd columns and even rows, build a diagonal up
+						// to the left
+						if (x&1 && !(y&1) && y>0) {
+							all_walls.push(new Wall(points_tracker[x][y-1],points_tracker[x-1][y]));
+						}
+					}
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[0][0];
+				this.end_point = points_tracker[xsize][ysize];
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -718,6 +792,14 @@
 					'y_multiplier': 2,
 					'max_face_size': 4,
 					'algo': Maze.base_styles.squaretriangles
+				},
+				'snubsquare': {
+					'min_xsize': 3,
+					'min_ysize': 3,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 4,
+					'algo': Maze.base_styles.snubsquare
 				}
 			};
 
