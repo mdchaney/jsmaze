@@ -205,6 +205,11 @@
 				}
 			}
 
+			// Helper to get the length of a wall
+			Wall.prototype.length = function() {
+				return Math.sqrt(Math.pow(this.points[0].x-this.points[1].x,2) + Math.pow(this.points[0].y-this.points[1].y,2));
+			}
+
 			// Cells have a set of walls along with a few other pieces of
 			// information that are used while generating a maze.
 			// Generally, a permutation of wall directions and a pointer to
@@ -700,10 +705,10 @@
 				ysize = this.ysize;
 
 				// Offsets
-				var upper_right_x_offset = Math.sin(45.0*Math.PI/180.0) - Math.sin(75.0*Math.PI/180.0);
-				var upper_right_y_offset = Math.cos(45.0*Math.PI/180.0) - Math.cos(75.0*Math.PI/180.0);
-				upper_right_x_offset *= .5;
-				upper_right_y_offset *= .5;
+				var upper_right_x_offset = Math.cos(60.0*Math.PI/180.0) - Math.cos(45.0*Math.PI/180.0);
+				var upper_right_y_offset = Math.sin(60.0*Math.PI/180.0) - Math.sin(45.0*Math.PI/180.0);
+				upper_right_x_offset /= Math.sqrt(2);
+				upper_right_y_offset /= Math.sqrt(2);
 
 				// offsets[x][y] where "x" and "y" are 0 or 1
 				var offsets = [
@@ -717,6 +722,8 @@
 					]
 				];
 
+				var scale_offset = 1.0 - Math.cos(15.0*Math.PI/180.0);
+
 				// points_tracker[x][y] = point - this exists only as a tool to
 				// keep track of points for wall building.
 				var points_tracker = Array(xsize+1);
@@ -724,7 +731,9 @@
 				for (var x=0 ; x<= xsize ; x++) {
 					points_tracker[x] = Array(ysize+1);
 					for (var y=0 ; y<= ysize ; y++) {
-						points_tracker[x][y] = new Point(x + offsets[x&1][y&1].x,y + offsets[x&1][y&1].y);
+						points_tracker[x][y] = new Point(
+							x - (2*Math.floor(x/2.0)*scale_offset) + offsets[x&1][y&1].x,
+							y - (2*Math.floor(y/2.0)*scale_offset) + offsets[x&1][y&1].y);
 						all_points.push(points_tracker[x][y]);
 						// Build vertical walls
 						if (y>0) {
@@ -750,6 +759,10 @@
 				// Last, set the start and end points
 				this.start_point = points_tracker[0][0];
 				this.end_point = points_tracker[xsize][ysize];
+
+				// Reset xsize and ysize to reflect actual size of maze
+				this.xsize = points_tracker[xsize][ysize].x;
+				this.ysize = points_tracker[xsize][ysize].y;
 			}
 
 			Maze.base_styles_info = {
@@ -936,6 +949,12 @@
 				svg.appendChild(style);
 				container_div.appendChild(svg);
 				return svg;
+			}
+
+			// Get the svg
+			function find_svg(div_id) {
+				var container_div = document.getElementById(div_id);
+				return container_div.getElementsByTagName('svg')[0];
 			}
 
 			// Find a reference to the svg's stylesheet
