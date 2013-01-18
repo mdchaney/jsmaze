@@ -769,6 +769,236 @@
 				this.ysize = points_tracker[xsize][ysize].y;
 			}
 
+			// Cairo tiling is based on a series of pentagons in groups of
+			// four.  Each pentagon has 4 walls of equal length and a
+			// single shorter wall.  We can create a snub square tiling
+			// pattern first that consists of 5 squares and 8 triangles
+			// (although we technically need only 2 squares and 3
+			// triangles).  The centers of each square and triangle then
+			// become the vertices of the pentagons in a single repeated
+			// pattern.  The pattern is rotationally symmetric around the
+			// center of the center square, so we can compute only one
+			// single pentagon and rotate it through to get the rest of the
+			// coordinates.
+			//
+			// But the pattern can actually be computed in a simpler
+			// manner.  Each pentagon has two 90 degree angles.  The center
+			// square is rotated 15 degrees CW, and the opposite 90 degree
+			// angles are rotated 15 degrees CCW.  The angle where the two
+			// equilateral sides meet is then 120 degrees.  Thus, the other
+			// angles are also 120 degrees.
+			//
+			// Going back to the snub square method, we can easily see that
+			// the "long" walls are made of two segments - one is half the
+			// length of the square's walls (which are a single unit) and
+			// the other is the distance from the perpendicular in the
+			// middle of an equilateral triangle's side (also a single
+			// unit) to the center.  The "short" walls are then twice the
+			// distance from the center of the triangle.
+			//
+			// Working out the math, the length of the long wall is
+			// .5 + .5 x tan(30)
+			// and the length of the short wall is
+			// 2 x .5 x tan(30)    - which is just tan(30)
+			//
+			// So we can think of each group of 4 in a pattern where the
+			// center has 4 long lines connecting at 90 degree angles.  The
+			// other end of each line is a point which connects to a long
+			// line on the CW side at a 120 degree angle and to a short
+			// line on the CCW side at a 120 degree angle.  Continuing CW
+			// we have another long line, this time at a 90 degree angle,
+			// and then we're to the short line at a 120 degree angle
+			// (at which point we've completed the shape).  Now, we need to
+			// take that entire structure and rotate it 15 degrees CW.  We
+			// can tile a plane with this shape.
+			//
+			// So, we'll compute the as a center point and 3 "offsets"
+			// from there.
+
+			Maze.base_styles.cairo = function(xsize,ysize,all_points,all_walls) {
+				// Need to make sure xsize and ysize are even
+				this.xsize = (this.xsize & 1 ? this.xsize + 1 : this.xsize);
+				this.ysize = (this.ysize & 1 ? this.ysize + 1 : this.ysize);
+
+				// There are 3 x positions for every 2 cells
+				xsize = this.xsize * 1.5;
+				ysize = this.ysize;
+
+				var long_line_length = 0.5 + Math.tan(30.0*Math.PI/180.0) / 2.0;
+				var short_line_length = Math.tan(30.0*Math.PI/180.0);
+				// Offsets - assuming "center" is 0,0 - we compute three
+				// other points.
+				var p1 = new Point(
+					Math.sin(15.0*Math.PI/180.0) * long_line_length,
+					Math.cos(15.0*Math.PI/180.0) * long_line_length
+				);
+				// Same offsets - just x and y reversed
+				var p2 = new Point(
+					p1.x + p1.y,
+					p1.y + p1.x
+				);
+				// Same offset values as first time, but y is subtracted
+				var p3 = new Point(
+					p2.x + p1.x,
+					p2.y - p1.y
+				);
+				var center_offset = new Point(
+					p3.x, p3.x
+				);
+
+				// In order to fit in a structure with a (0,0) origin, we
+				// need to offset the entire thing such that the vertex on
+				// the CCW side of the short line is "0" - one for "x" and
+				// one for "y".  It's the same distance from the center,
+				// though - and it's the "x" offset of p3.  In the same way,
+				// the width and height of one group of 4 is p1.y + p3.x.
+				// Divided by 2, that number is the multiplier from the snub
+				// square layout - cos(15).
+
+				// Each square has to be moved toward the origin by twice this
+				// value for each square.  It's easy to work the math out.
+				// My method is a little ghetto, but I don't care.  It works
+				// and it's easy to understand.
+				var scale_offset = Math.cos(15.0*Math.PI/180.0);
+
+				// points_tracker[y][x] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(ysize+1);
+
+				for (var y=0 ; y <= ysize ; y+=2) {
+
+					points_tracker[y] = Array(xsize+2);
+					if (y>1) {
+						points_tracker[y-1] = Array(xsize+2);
+					}
+
+					for (var x=0 ; x<= xsize ; x+=3) {
+
+						points_tracker[y][x] = new Point(x,y);
+						all_points.push(points_tracker[y][x]);
+
+						if (x>0) {
+							// Build 3 walls back along x
+							points_tracker[y][x-1] = new Point(x-1,y);
+							all_points.push(points_tracker[y][x-1]);
+							all_walls.push(new Wall(points_tracker[y][x], points_tracker[y][x-1]));
+
+							points_tracker[y][x-2] = new Point(x-2,y);
+							all_points.push(points_tracker[y][x-2]);
+							all_walls.push(new Wall(points_tracker[y][x-1], points_tracker[y][x-2]));
+
+							all_walls.push(new Wall(points_tracker[y][x-2], points_tracker[y][x-3]));
+						}
+
+						if (y>0) {
+							// Build 3 walls back again.
+							points_tracker[y-1][x+1] = new Point(x+1,y-1);
+							all_points.push(points_tracker[y-1][x+1]);
+							all_walls.push(new Wall(points_tracker[y][x], points_tracker[y-1][x+1]));
+
+							points_tracker[y-1][x] = new Point(x,y-1);
+							all_points.push(points_tracker[y-1][x]);
+							all_walls.push(new Wall(points_tracker[y-1][x+1], points_tracker[y-1][x]));
+
+							all_walls.push(new Wall(points_tracker[y-1][x], points_tracker[y-2][x]));
+
+							if (x>0) {
+								// Note that this is the "center"
+								points_tracker[y-1][x-1] = new Point(x-1,y-1);
+								all_points.push(points_tracker[y-1][x-1]);
+
+								all_walls.push(new Wall(points_tracker[y-1][x-1], points_tracker[y][x-1]));
+								all_walls.push(new Wall(points_tracker[y-1][x-1], points_tracker[y-1][x]));
+								all_walls.push(new Wall(points_tracker[y-1][x-1], points_tracker[y-1][x-2]));
+								all_walls.push(new Wall(points_tracker[y-1][x-1], points_tracker[y-2][x-2]));
+							}
+						}
+					}
+				}
+
+				// Set cell offsets
+				for (var x=2 ; x < xsize ; x+=3) {
+					for (var y=1 ; y < ysize ; y+=2) {
+						// The cell at x,y is a "center" cell.  I'll make it "1,1" for purposes of this.
+						center = points_tracker[y][x];
+						center.x = ((center.x-2)/3*2+1) * scale_offset;
+						center.y = center.y * scale_offset;
+
+						var center_x = center.x;
+						var center_y = center.y;
+
+						// 4 points connected to center
+						points_tracker[y+1][x].x = center_x + p1.x;
+						points_tracker[y+1][x].y = center_y + p1.y;
+
+						points_tracker[y][x+1].x = center_x + p1.y;
+						points_tracker[y][x+1].y = center_y - p1.x;
+
+						if (y==1) {
+							points_tracker[y-1][x-1].x = center_x - p1.x;
+							points_tracker[y-1][x-1].y = center_y - p1.y;
+						}
+
+						if (x==2) {
+							points_tracker[y][x-1].x = center_x - p1.y;
+							points_tracker[y][x-1].y = center_y + p1.x;
+						}
+
+						// Next 4 points CW
+						points_tracker[y+1][x+1].x = center_x + p2.x;
+						points_tracker[y+1][x+1].y = center_y + p2.y;
+
+						if (y==1) {
+							points_tracker[y-1][x-2].x = center_x - p2.x;
+							points_tracker[y-1][x-2].y = center_y - p2.y;
+
+							points_tracker[y-1][x+1].x = center_x + p2.y;
+							points_tracker[y-1][x+1].y = center_y - p2.x;
+						}
+
+						if (x==2) {
+							points_tracker[y+1][x-2].x = center_x - p2.y;
+							points_tracker[y+1][x-2].y = center_y + p2.x;
+						}
+
+						// Next 4 points CW
+						points_tracker[y][x+2].x = center_x + p3.x;
+						points_tracker[y][x+2].y = center_y + p3.y;
+
+						if (x==2) {
+							points_tracker[y][x-2].x = center_x - p3.x;
+							points_tracker[y][x-2].y = center_y - p3.y;
+						}
+
+						points_tracker[y+1][x-1].x = center_x - p3.y;
+						points_tracker[y+1][x-1].y = center_y + p3.x;
+
+						if (y==1) {
+							points_tracker[y-1][x].x = center_x + p3.y;
+							points_tracker[y-1][x].y = center_y - p3.x;
+						}
+					}
+				}
+
+				for (x=0 ; x<=xsize ; x++) {
+					for (y=0 ; y<=ysize ; y++) {
+						if (points_tracker[y] && points_tracker[y][x]) {
+							if (points_tracker[y][x].x == x || points_tracker[y][x].y == y) {
+								console.log("Unmoved point: " + x + "," + y + " is at " + points_tracker[y][x].x + "," + points_tracker[y][x].y);
+							}
+						}
+					}
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[0][0];
+				this.end_point = points_tracker[ysize][xsize];
+
+				// Reset xsize and ysize to reflect actual size of maze
+				this.xsize = points_tracker[ysize-1][xsize].x;
+				this.ysize = points_tracker[ysize][xsize].y;
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -817,6 +1047,14 @@
 					'y_multiplier': 1,
 					'max_face_size': 4,
 					'algo': Maze.base_styles.snubsquare
+				},
+				'cairo': {
+					'min_xsize': 2,
+					'min_ysize': 2,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 5,
+					'algo': Maze.base_styles.cairo
 				}
 			};
 
