@@ -848,8 +848,17 @@
 				svg.setAttribute("baseProfile", "tiny");
 				svg.setAttribute("width", "100%");
 				svg.setAttribute("height", "100%");
+				var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+				var stylesheet = document.createTextNode("line.wall.open { display: none; }");
+				style.appendChild(stylesheet);
+				svg.appendChild(style);
 				container_div.appendChild(svg);
 				return svg;
+			}
+
+			// Find a reference to the svg's stylesheet
+			function svg_find_stylesheet(svg) {
+				return(svg.getElementsByTagName('style')[0]);
 			}
 
 			// Get the svg's width.  The issue here is that on Firefox the
@@ -910,6 +919,7 @@
 				r.setAttribute("fill", 'url(#svgbg)');
 				r.setAttribute("stroke", 'rgb(0,0,255)');
 				r.setAttribute("stroke-width", "1");
+				r.setAttribute("id", "bg");
 				svg.appendChild(r);
 			}
 
@@ -930,6 +940,7 @@
 					p.setAttribute("fill", 'rgb(0,0,' + (255-Math.floor((cell.depth/max_depth)*255)) + ')');
 					p.setAttribute("stroke", 'rgb(0,0,' + (255-Math.floor((cell.depth/max_depth)*255)) + ')');
 					p.setAttribute("stroke-width", "1");
+					p.setAttribute("class", "depth-map");
 					svg.appendChild(p);
 				}
 			}
@@ -940,16 +951,21 @@
 				var ymult = ymult_for(ysize, svg);
 				for (var x=0 ; x < walls.length ; x++) {
 					var wall = walls[x];
-					if (!wall.is_open()) {
-						var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-						l.setAttribute("x1", wall.points[0].x * xmult + xmult);
-						l.setAttribute("y1", wall.points[0].y * ymult + ymult);
-						l.setAttribute("x2", wall.points[1].x * xmult + xmult);
-						l.setAttribute("y2", wall.points[1].y * ymult + ymult);
+					var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+					l.setAttribute("x1", wall.points[0].x * xmult + xmult);
+					l.setAttribute("y1", wall.points[0].y * ymult + ymult);
+					l.setAttribute("x2", wall.points[1].x * xmult + xmult);
+					l.setAttribute("y2", wall.points[1].y * ymult + ymult);
+					if (wall.is_open()) {
 						l.setAttribute("stroke", "#ff0008");
 						l.setAttribute("stroke-width", "1");
-						svg.appendChild(l);
+						l.setAttribute("class", "open wall");
+					} else {
+						l.setAttribute("stroke", "#ff0008");
+						l.setAttribute("stroke-width", "1");
+						l.setAttribute("class", "closed wall");
 					}
+					svg.appendChild(l);
 				}
 			}
 
@@ -968,6 +984,7 @@
 					c.setAttribute("r", 2);
 					c.setAttribute("stroke", "#ff0008");
 					c.setAttribute("stroke-width", "1");
+					c.setAttribute("class", "cell-center");
 					svg.appendChild(c);
 				}
 			}
@@ -983,6 +1000,7 @@
 				c.setAttribute("r", 2);
 				c.setAttribute("stroke", "#ff0008");
 				c.setAttribute("stroke-width", "1");
+				c.setAttribute("class", "end-point");
 				svg.appendChild(c);
 				var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
 				c.setAttribute("cx", maze.start_point.x * xmult + xmult);
@@ -990,6 +1008,7 @@
 				c.setAttribute("r", 2);
 				c.setAttribute("stroke", "#ff0008");
 				c.setAttribute("stroke-width", "1");
+				c.setAttribute("class", "start-point");
 				svg.appendChild(c);
 			}
 
@@ -1033,10 +1052,25 @@
 				pl.setAttribute("fill", "none");
 				pl.setAttribute("stroke", "#ffff00");
 				pl.setAttribute("stroke-width", "1");
+				if (!show_solution) {
+					pl.setAttribute("style", "display: none;");
+				}
 				pl.setAttribute("id", "solution");
 				svg.appendChild(pl);
 			}
 
+			// Selectors for various maze parts:
+			//
+			// #bg - The background gradiant
+			// .depth-map - The individual faces in the depth map
+			// .wall - All wall segments
+			// .open - Open (invisible) wall segments
+			// .closed - Closed (visible) wall segments
+			// #solution - The path that shows the maze solution
+			// .cell-center - Dots that mark the center of each cell
+			// #end-point, #start-point - Dots that mark the official start
+			//         and end points
+			// 
 			// Leaving these as globals
 			var args=get_args();
 
@@ -1059,7 +1093,7 @@
 				draw_gradient_bg(maze.end_depth, maze.max_depth, svg);
 				draw_cell_depths(maze.cells, maze.xsize, maze.ysize, maze.max_depth, svg);
 				draw_walls(maze.walls, maze.xsize, maze.ysize, svg);
-				if (show_solution) show_maze_solution(maze, maze.xsize, maze.ysize, svg);
+				show_maze_solution(maze, maze.xsize, maze.ysize, svg);
 				//show_start_and_end_points(maze, maze.xsize, maze.ysize, svg);
 			}
 
