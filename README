@@ -20,6 +20,18 @@ describe it as a graph.
 All four accept xsize and ysize parameters as part of the url, i.e.
 file:///Users/mdchaney/mazes/jsmaze1.html?xsize=100&ysize=75
 
+jsmaze4.html additionally accepts many other parameters:
+xsize, ysize - size of maze
+solution=true - show the solution
+algo=[recursive|drunk_walk] - choose an algorithm for maze generation
+style=[square|triangle|hexagonal|diamond|squaretriangles|snubsquares] -
+   set the style for the maze
+
+For example:
+file:///Users/mdchaney/mazes/jsmaze4.html?xsize=100&ysize=75&algo=drunk_walk&style=snubsquare
+
+See the code if you wish to add another style or generation algorithm.
+
 The mazes fill in with a color that ranges from bright blue to black
 depending on the distance of the square from the entrance.  Note that
 because we have the entrance and exits fixed at the corners, the exit
