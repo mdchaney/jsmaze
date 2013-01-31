@@ -181,6 +181,9 @@
 				var i,j,k,new_dir;
 				var lr=(Math.random()>=.5 ? 0 : 1);
 				var straightness=Math.floor(Math.random()*3);
+				// Use something like this to make a straighter maze, or
+				// remove the "2-" to make a really curvy maze.
+				//var straightness=2-Math.floor(Math.log(Math.random()*19+1));
 				for (k=0 ; k<3 ; k++) {
 					new_dir = perms[dir][straightness][lr][k];
 					i=x+deltax[new_dir];
