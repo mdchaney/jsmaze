@@ -769,6 +769,114 @@
 				this.ysize = points_tracker[xsize][ysize].y;
 			}
 
+			// Snub square tiling set at 45 degrees from the other way of doing it.
+			Maze.base_styles.snubsquare2 = function(xsize,ysize,all_points,all_walls) {
+				// Ensure that xsize and ysize are even - go up to next number
+				// if odd.
+				xsize = ((xsize + 1) | 1) - 1
+				ysize = ((ysize + 1) | 1) - 1
+
+				this.xsize = xsize;
+				this.ysize = ysize;
+
+				// Setting the recurring pattern on a 7x7 grid
+				xarraysize = xsize * 6 / 2 + 1;
+				yarraysize = ysize * 6 / 2 + 1;
+
+				// Offsets
+				var offsets = [
+					0,
+					.5,
+					Math.cos(30.0*Math.PI/180.0),
+					Math.cos(30.0*Math.PI/180.0) + .5,
+					Math.cos(30.0*Math.PI/180.0) + 1.0,
+					2 * Math.cos(30.0*Math.PI/180.0) + .5,
+					2 * Math.cos(30.0*Math.PI/180.0) + 1
+				];
+
+				var every_2_offset = offsets[6];
+
+				// points_tracker[x][y] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(xarraysize+1);
+
+				for (var x=0 ; x<= xsize*3 ; x+=6) {
+					for (var j=0 ; j<6 ; j++) {
+						points_tracker[x+j] = Array(yarraysize+1);
+					}
+					for (var y=0 ; y<= ysize*3 ; y+=6) {
+						if (y>0) {
+							points_tracker[x][y-5] = new Point(x,y-5);
+							all_points.push(points_tracker[x][y-5]);
+							points_tracker[x][y-1] = new Point(x,y-1);
+							all_points.push(points_tracker[x][y-1]);
+							if (y>6) {
+								all_walls.push(new Wall(points_tracker[x][y-5], points_tracker[x][y-7]));
+							}
+						}
+						if (x>0) {
+							points_tracker[x-4][y] = new Point(x-4,y);
+							all_points.push(points_tracker[x-4][y]);
+							points_tracker[x-2][y] = new Point(x-2,y);
+							all_points.push(points_tracker[x-2][y]);
+							all_walls.push(new Wall(points_tracker[x-4][y], points_tracker[x-2][y]));
+							if (y>0) {
+								points_tracker[x-3][y-2] = new Point(x-3,y-2);
+								all_points.push(points_tracker[x-3][y-2]);
+								points_tracker[x-3][y-4] = new Point(x-3,y-4);
+								all_points.push(points_tracker[x-3][y-4]);
+								points_tracker[x-1][y-3] = new Point(x-1,y-3);
+								all_points.push(points_tracker[x-1][y-3]);
+								points_tracker[x-5][y-3] = new Point(x-5,y-3);
+								all_points.push(points_tracker[x-5][y-3]);
+								// build the walls
+								all_walls.push(new Wall(points_tracker[x][y-1], points_tracker[x-2][y]));
+								all_walls.push(new Wall(points_tracker[x][y-1], points_tracker[x-1][y-3]));
+								all_walls.push(new Wall(points_tracker[x][y-5], points_tracker[x-1][y-3]));
+								all_walls.push(new Wall(points_tracker[x][y-5], points_tracker[x-2][y-6]));
+
+								all_walls.push(new Wall(points_tracker[x-6][y-1], points_tracker[x-4][y]));
+								all_walls.push(new Wall(points_tracker[x-6][y-1], points_tracker[x-5][y-3]));
+								all_walls.push(new Wall(points_tracker[x-6][y-5], points_tracker[x-5][y-3]));
+								all_walls.push(new Wall(points_tracker[x-6][y-5], points_tracker[x-4][y-6]));
+
+								all_walls.push(new Wall(points_tracker[x-3][y-2], points_tracker[x-2][y]));
+								all_walls.push(new Wall(points_tracker[x-3][y-2], points_tracker[x-1][y-3]));
+								all_walls.push(new Wall(points_tracker[x-3][y-2], points_tracker[x-3][y-4]));
+								all_walls.push(new Wall(points_tracker[x-3][y-2], points_tracker[x-5][y-3]));
+								all_walls.push(new Wall(points_tracker[x-3][y-2], points_tracker[x-4][y]));
+
+								all_walls.push(new Wall(points_tracker[x-3][y-4], points_tracker[x-1][y-3]));
+								all_walls.push(new Wall(points_tracker[x-3][y-4], points_tracker[x-2][y-6]));
+								all_walls.push(new Wall(points_tracker[x-3][y-4], points_tracker[x-4][y-6]));
+								all_walls.push(new Wall(points_tracker[x-3][y-4], points_tracker[x-5][y-3]));
+
+								if (x>6) {
+									all_walls.push(new Wall(points_tracker[x-5][y-3], points_tracker[x-7][y-3]));
+								}
+							}
+						}
+					}
+				}
+
+				// Set offset for all points
+				for (var j=0 ; j<all_points.length ; j++) {
+					var p = all_points[j];
+					var old_x = p.x;
+					var old_y = p.y;
+					p.x = Math.floor(old_x/6)*every_2_offset + offsets[old_x % 6];
+					p.y = Math.floor(old_y/6)*every_2_offset + offsets[old_y % 6];
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[0][1];
+				this.end_point = points_tracker[xsize*3][ysize*3-1];
+
+				// Reset xsize and ysize to reflect actual size of maze
+				this.xsize = points_tracker[xsize*3][ysize*3-1].x;
+				this.ysize = points_tracker[xsize*3-2][ysize*3].y;
+			}
+
 			// Cairo tiling is based on a series of pentagons in groups of
 			// four.  Each pentagon has 4 walls of equal length and a
 			// single shorter wall.  We can create a snub square tiling
@@ -1047,6 +1155,14 @@
 					'y_multiplier': 1,
 					'max_face_size': 4,
 					'algo': Maze.base_styles.snubsquare
+				},
+				'snubsquare2': {
+					'min_xsize': 2,
+					'min_ysize': 2,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 4,
+					'algo': Maze.base_styles.snubsquare2
 				},
 				'cairo': {
 					'min_xsize': 2,
