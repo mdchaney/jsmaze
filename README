@@ -5,17 +5,18 @@ walls.
 There is a fourth program (jsmaze4.html) which is a generalized maze
 generator and can be used to make mazes with cells of any shape.  It is
 not necessary for the cells to be of regular shape, only that every
-vertex is properly marked with the walls built between them.  The code
-as-is includes a standard square maze as well as a maze with triangular
-cells.  The maze building algorithm is #1 - the simple depth-first
-recursive algorithm.
+vertex is properly marked with the walls built between them.
 
-There are some other simple maze styles that could be made.  Simple
-things that come to mind are a combination of octagons and squares,
-hexagons, a combination of squares and triangles (snub square tiling),
-or anything else that can tile a plane.  You just have to be able to
-compute every vertex and the line segments between them - basically
-describe it as a graph.
+The code as-is includes a number of maze bases that you may choose:
+square, diamond, triangular, hexagonal, pentagonal (cairo tiling), and
+snub square (mixture of squares and equilateral triangles).  There are
+two maze building algorithms: the simple depth-first recursive algorithm
+and the drunk walk algorithm.
+
+There are some other simple maze styles that could be made, basically
+anything that can tile a plane.  You just have to be able to compute
+every vertex and the line segments between them - basically describe it
+as a graph.
 
 All four accept xsize and ysize parameters as part of the url, i.e.
 file:///Users/mdchaney/mazes/jsmaze1.html?xsize=100&ysize=75
@@ -24,13 +25,21 @@ jsmaze4.html additionally accepts many other parameters:
 xsize, ysize - size of maze
 solution=true - show the solution
 algo=[recursive|drunk_walk] - choose an algorithm for maze generation
-style=[square|triangle|hexagonal|diamond|squaretriangles|snubsquares] -
+style=[square|triangle|hexagonal|diamond|squaretriangles|snubsquare|snubsquare2] -
    set the style for the maze
 
 For example:
 file:///Users/mdchaney/mazes/jsmaze4.html?xsize=100&ysize=75&algo=drunk_walk&style=snubsquare
 
 See the code if you wish to add another style or generation algorithm.
+
+The first three mazes create square mazes only and use HTML tables to
+draw the completed maze.  jsmaze4.html uses SVG to draw the maze and is
+far more rich in possible features.  For instance, the solution is
+always available but a style entry can be used to make it visible.
+Likewise, all walls are drawn, but again a style is used to hide the
+walls that are "open".  It's easy to modify the code to see different
+parts of the maze, the base, etc.
 
 The mazes fill in with a color that ranges from bright blue to black
 depending on the distance of the square from the entrance.  Note that
