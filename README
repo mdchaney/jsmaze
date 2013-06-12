@@ -25,7 +25,7 @@ jsmaze4.html additionally accepts many other parameters:
 xsize, ysize - size of maze
 solution=true - show the solution
 algo=[recursive|drunk_walk] - choose an algorithm for maze generation
-style=[square|triangle|hexagonal|diamond|squaretriangles|snubsquare|snubsquare2] -
+style=[square|triangle|hexagonal|diamond|squaretriangles|snubsquare|snubsquare2|round] -
    set the style for the maze
 
 For example:
