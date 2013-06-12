@@ -1206,7 +1206,14 @@
 			}
 
 			// Finds all faces attached to a point that aren't yet "found"
-			// and adds them to an array.
+			// and adds them to an array.  The "signed_area" makes sure
+			// that we only find faces that have walls/vertices in
+			// clockwise order.  The reason is that the algorithm will find
+			// the face from all of the outside walls.  The
+			// "safety_counter" can also make it fairly easy to ignore
+			// those, but ultimately the only real way to ignore it in all
+			// circumstances is to recognize that it'll have a negative
+			// "signed_area".
 			Maze.prototype.find_faces = function(point, all_cells) {
 				for (var i=0 ; i<point.walls.length ; i++) {
 					var wall = point.walls[i];
@@ -1214,13 +1221,17 @@
 						var safety_counter = 0;
 						var this_point=point;
 						var walls = [];
+						var signed_area = 0;
+						var other_point;
 						do {
 							walls.push(wall);
-							this_point = wall.traverse(this_point,wall.other_end(this_point));
+							other_point = wall.other_end(this_point);
+							signed_area += (this_point.x * other_point.y - other_point.x * this_point.y);
+							this_point = wall.traverse(this_point,other_point);
 							wall = this_point.next_cw_wall(wall)
 							safety_counter++;
 						} while (this_point != point && safety_counter <= this.base_style.max_face_size);
-						if (walls.length <= this.base_style.max_face_size) {
+						if (walls.length <= this.base_style.max_face_size && signed_area > 0) {
 							all_cells.push(new Cell(walls));
 						}
 					}
