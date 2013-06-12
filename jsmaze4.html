@@ -1439,6 +1439,20 @@
 				}
 			}
 
+			// Just draw a "point"
+			function draw_point(x, y, color, xsize, ysize, svg) {
+				var xmult = xmult_for(xsize, svg);
+				var ymult = ymult_for(ysize, svg);
+				var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+				c.setAttribute("cx", x * xmult + xmult);
+				c.setAttribute("cy", y * ymult + ymult);
+				c.setAttribute("r", 2);
+				c.setAttribute("stroke", color);
+				c.setAttribute("stroke-width", "1");
+				c.setAttribute("class", "point");
+				svg.appendChild(c);
+			}
+
 			// This code is useful for debugging the face-finding
 			// algorithm.  It puts a red dot in the middle of every
 			// face.
@@ -1564,6 +1578,7 @@
 				draw_cell_depths(maze.cells, maze.xsize, maze.ysize, maze.max_depth, svg);
 				draw_walls(maze.walls, maze.xsize, maze.ysize, svg);
 				show_maze_solution(maze, maze.xsize, maze.ysize, svg);
+				//show_cell_centers(maze.cells, maze.xsize, maze.ysize, svg);
 				//show_start_and_end_points(maze, maze.xsize, maze.ysize, svg);
 			}
 
