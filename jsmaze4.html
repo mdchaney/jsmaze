@@ -1107,6 +1107,74 @@
 				this.ysize = points_tracker[ysize][xsize].y;
 			}
 
+			// Round maze.
+			// So, xsize becomes a ring count and ysize becomes a density
+			// measurement.  The first two rings are the center and are one
+			// single cell.  The density tells how many cells will be
+			// around the first complete ring (the third ring).  That also
+			// sets the minimum cell size.
+			//
+			// As the maze adds rings, the cells will become larger.  When
+			// the cells are twice or more the size of the original cells
+			// at ring 3 they will split.
+			//
+			// The cells on each ring will be staggered from the next.
+			Maze.base_styles.round = function(ring_count,density,all_points,all_walls) {
+				// points_tracker[ring][i] = point - this exists only as a tool to
+				// keep track of points for wall building.
+				var points_tracker = Array(ring_count+1);
+
+				this.xsize = ring_count * 2;
+				this.ysize = ring_count * 2;
+
+				var inner_radius = 1;
+
+				var radians = Math.PI * 2.0;
+
+				// Determine when to split the cells
+				var smallest_outer_length = 2.0 * ((inner_radius + 1) * radians / density);
+
+				for (var ring = inner_radius ; ring <= ring_count ; ring++) {
+					points_tracker[ring] = Array(density);
+					var this_outer_length = 2.0 * (ring * radians / density);
+					var splitting = (this_outer_length > smallest_outer_length * 2.0);
+					if (splitting) {
+						density *= 2;
+					}
+					for (var i=0 ; i < density ; i++) {
+						var x,y,theta;
+						theta = i * radians / density;
+						x = ring * Math.cos(theta) + ring_count;
+						y = ring * Math.sin(theta) + ring_count;
+						points_tracker[ring][i] = new Point(x,y);
+						all_points.push(points_tracker[ring][i]);
+						// Build ring
+						if (i>0) {
+							all_walls.push(new Wall(points_tracker[ring][i-1], points_tracker[ring][i]));
+						}
+						// Build radial walls
+						if (ring>inner_radius) {
+							// This will stagger the walls.
+							if (splitting) {
+								if ((i&1) == 0 && ((i/2)&1) == (ring&1)) {
+									all_walls.push(new Wall(points_tracker[ring-1][i/2],points_tracker[ring][i]));
+								}
+							} else {
+								if ((i&1) == (ring&1)) {
+									all_walls.push(new Wall(points_tracker[ring-1][i],points_tracker[ring][i]));
+								}
+							}
+						}
+					}
+					// complete the ring
+					all_walls.push(new Wall(points_tracker[ring][density-1], points_tracker[ring][0]));
+				}
+
+				// Last, set the start and end points
+				this.start_point = points_tracker[ring_count][0];
+				this.end_point = points_tracker[ring_count][Math.round(density / 2)];
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -1171,6 +1239,14 @@
 					'y_multiplier': 1,
 					'max_face_size': 5,
 					'algo': Maze.base_styles.cairo
+				},
+				'round': {
+					'min_xsize': 2,
+					'min_ysize': 2,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 20,
+					'algo': Maze.base_styles.round
 				}
 			};
 
