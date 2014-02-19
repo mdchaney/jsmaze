@@ -13,6 +13,8 @@
 			body { width: 100%; height: 100%; background: #ddd; }
 			div#wrap { width: 90%; height: 90%; margin: auto auto; }
 			div#svg-container { width: 100%; height: 90%; background: #fff; }
+			h1 { float: left; }
+			div#form { float: right; width: 70%; min-height: 30px; position: relative; top: 20px; }
 		</style>
 		<script type="text/javascript">
 			// <![CDATA[
@@ -1380,6 +1382,15 @@
 			//                                                          //
 			//////////////////////////////////////////////////////////////
 
+			// Clear an existing svg element
+			function destroy_svg_element(div_id) {
+				var container_div = document.getElementById(div_id);
+				var svgs = container_div.getElementsByTagName('svg');
+				for (var i=0 ; i<svgs.length ; i++) {
+					container_div.removeChild(svgs[i]);
+				}
+			}
+
 			// Creates an svg element inside a container div
 			function create_svg_element(div_id) {
 				var container_div = document.getElementById(div_id);
@@ -1649,6 +1660,7 @@
 				var maze = new Maze(xsize, ysize, maze_style, maze_algorithm);
 
 				// With the maze created, we'll display it
+				destroy_svg_element("svg-container");
 				var svg = create_svg_element("svg-container");
 				draw_gradient_bg(maze.end_depth, maze.max_depth, svg);
 				draw_cell_depths(maze.cells, maze.xsize, maze.ysize, maze.max_depth, svg);
@@ -1658,6 +1670,50 @@
 				//show_start_and_end_points(maze, maze.xsize, maze.ysize, svg);
 			}
 
+			function set_up_form() {
+				var maze_style_selector = document.getElementById('maze-style-selector');
+				for (var key in Maze.base_styles_info) {
+					var opt = document.createElement('option');
+					opt.setAttribute('value',key);
+					opt.appendChild(document.createTextNode(key));
+					maze_style_selector.appendChild(opt);
+				}
+
+				var maze_algorithm_selector = document.getElementById('maze-algorithm-selector');
+				for (var key in Maze.maze_styles_info) {
+					var opt = document.createElement('option');
+					opt.setAttribute('value',key);
+					opt.appendChild(document.createTextNode(key));
+					maze_algorithm_selector.appendChild(opt);
+				}
+
+				// Now set the defaults
+				var x_size_input = document.getElementById('x-size-input');
+				var y_size_input = document.getElementById('y-size-input');
+				var show_solution_input = document.getElementById('show-solution-input');
+				x_size_input.value = xsize;
+				y_size_input.value = ysize;
+				show_solution_input.checked = show_solution;
+				maze_style_selector.value = maze_style;
+				maze_algorithm_selector.value = maze_algorithm;
+			}
+
+			function new_maze() {
+				var maze_style_selector = document.getElementById('maze-style-selector');
+				var maze_algorithm_selector = document.getElementById('maze-algorithm-selector');
+				var x_size_input = document.getElementById('x-size-input');
+				var y_size_input = document.getElementById('y-size-input');
+				var show_solution_input = document.getElementById('show-solution-input');
+				xsize = parseInt(x_size_input.value);
+				ysize = parseInt(y_size_input.value);
+				maze_style = maze_style_selector.value;
+				maze_algorithm = maze_algorithm_selector.value;
+				show_solution = show_solution_input.checked;
+
+				make_a_maze();
+			}
+
+			add_body_onload(set_up_form);
 			add_body_onload(make_a_maze);
 
 			//]]>
@@ -1669,6 +1725,18 @@
 		<div id="wrap">
 
 			<h1>JavaScript Maze</h1>
+
+			<div id="form">
+				<select id="maze-style-selector"></select>
+				<select id="maze-algorithm-selector"></select>
+				<input type="number" id="x-size-input" size="4" maxlength="4" step="1" style="width: 5em;" />
+				<input type="number" id="y-size-input" size="4" maxlength="4" step="1" style="width: 5em;" />
+				<input type="checkbox" id="show-solution-input" value="1" />
+				Show Solution
+				<input type="button" value="Go" id="go-button" onclick="new_maze();" />
+			</div>
+
+			<br clear="left" />
 
 			<div id="svg-container"></div>
 
