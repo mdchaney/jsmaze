@@ -1713,6 +1713,17 @@
 				make_a_maze();
 			}
 
+			function toggle_solution() {
+				var show_solution_input = document.getElementById('show-solution-input');
+				show_solution = show_solution_input.checked;
+				var solution = document.getElementById('solution');
+				if (show_solution) {
+					solution.setAttribute("style", "");
+				} else {
+					solution.setAttribute("style", "display: none;");
+				}
+			}
+
 			add_body_onload(set_up_form);
 			add_body_onload(make_a_maze);
 
@@ -1731,9 +1742,11 @@
 				<select id="maze-algorithm-selector"></select>
 				<input type="number" id="x-size-input" size="4" maxlength="4" step="1" style="width: 5em;" />
 				<input type="number" id="y-size-input" size="4" maxlength="4" step="1" style="width: 5em;" />
-				<input type="checkbox" id="show-solution-input" value="1" />
-				Show Solution
 				<input type="button" value="Go" id="go-button" onclick="new_maze();" />
+				|
+
+				<input type="checkbox" id="show-solution-input" value="1" onclick="toggle_solution();" />
+				Show Solution
 			</div>
 
 			<br clear="left" />
