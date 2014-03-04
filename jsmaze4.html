@@ -488,6 +488,69 @@
 				this.find_depth(this.start_cell(), null, 0);
 			}
 
+			// Like Prim's algorithm, but each "frontier" cell adds a path
+			// each cycle.  In this case, a frontier cell is one in which
+			// there are neighbors that aren't yet part of the maze.  When
+			// a cell has no more unvisited neighbors, it drops out of the
+			// frontier list.
+			Maze.maze_styles.bacterial = function() {
+
+				var frontier_cells = new Array;
+
+				// Doing this officially, start at a random location
+				var start = this.cells[Math.floor(Math.random() * this.cells.length)];
+				//var start = this.start_cell();
+
+				frontier_cells = [start];
+
+				while (frontier_cells.length > 0) {
+					var to_be_removed = new Array;
+
+					var current_frontier_length = frontier_cells.length;
+					var my_order = random_perm(current_frontier_length);
+
+					for (var k = 0 ; k < current_frontier_length ; k++) {
+
+						var next_cell = frontier_cells[my_order[k]];
+
+						var unvisited_neighbor_walls = new Array;
+
+						for (var i=0 ; i<next_cell.walls.length ; i++) {
+							var this_wall = next_cell.walls[i];
+							var this_neighbor = this_wall.neighbor(next_cell);
+							if (this_neighbor && !this_neighbor.visited()) {
+								unvisited_neighbor_walls.push([this_neighbor,this_wall]);
+							}
+						}
+
+						if (unvisited_neighbor_walls.length == 0) {
+							to_be_removed.push(my_order[k]);
+						} else {
+							// Choose one at random and move to it, and add it
+							// to the frontier list.
+							var item = unvisited_neighbor_walls[Math.floor(Math.random() * unvisited_neighbor_walls.length)];
+							var this_neighbor = item[0];
+							var this_wall = item[1];
+							this_wall.open();
+							frontier_cells.push(this_neighbor);
+						}
+					}
+
+					var remove_num;
+
+					to_be_removed.sort(function(a, b) { return a - b; });
+
+					// Remove frontier cells that have no unvisited neighbors
+					while (to_be_removed.length > 0) {
+						var remove_num = to_be_removed.pop();
+						frontier_cells.splice(remove_num,1);
+					}
+				}
+
+				// This needs to have depth calculated independently
+				this.find_depth(this.start_cell(), null, 0);
+			}
+
 			// My unicursal algorithm doesn't work well yet.  It sometimes
 			// works.
 			//
@@ -1588,6 +1651,10 @@
 				'prim': {
 					'name': 'Prim\'s Algorithm',
 					'algo': Maze.maze_styles.prim
+				},
+				'bacterial': {
+					'name': 'Bacterial',
+					'algo': Maze.maze_styles.bacterial
 				},
 				'unicursal': {
 					'name': 'unicursal',
