@@ -502,7 +502,7 @@
 			// into the area that isn't filled - a wall between the
 			// original entry wall and the exit wall.  If there is none we
 			// need to backtrack again until we can find one.
-			Maze.maze_styles.unicursal = function() {
+			Maze.maze_styles.unicursal_better_but_nonfunctional = function() {
 				var end_cell = this.end_cell();
 
 				function check_neighbor(cell,entry_wall) {
@@ -635,6 +635,61 @@
 				}
 
 				recursive_maze(this.start_cell(),null,0);
+			}
+
+			// Really inefficient unicursal algorithm.  This is a standard
+			// recursive backtracker with a slight modification.  If we're
+			// at the last cell and there are no unvisited cells then we
+			// return "true".  If the recursion returns true then we return
+			// true.  If it's false then we try the next wall, and return
+			// false if all return false.
+			//
+			// Without offering a proof I believe that the time this takes
+			// to generate a random path grows exponentially with the maze
+			// size.  Just doing simple tests, I can get it to work easily
+			// on a 7x5 square maze (at least one dimension has to be odd
+			// for a square maze), 9x6 works sometimes,  but 11x7
+			// essentially locks up.
+			Maze.maze_styles.unicursal = function() {
+
+				var end_cell = this.end_cell();
+				var pieces_left = this.cells.length-1;
+
+				function recursive_maze(cell,entry_wall,depth) {
+					cell.depth=depth;
+					cell.entry_wall=entry_wall;
+
+					// Check if this is the end (yes, I'm aware of the
+					// optimization).
+					if (cell == end_cell) {
+						if (pieces_left == 0) {
+							return true;
+						} else {
+							return false;
+						}
+					}
+
+					// Now, go through the surrounding cells and recurse
+					for (var k=0 ; k<cell.perm.length ; k++) {
+						var wall_num = cell.perm[k];
+						var neighbor = cell.walls[wall_num].neighbor(cell);
+						if (neighbor && !neighbor.visited()) {
+							pieces_left--;
+							cell.walls[wall_num].open();
+							var winner = arguments.callee(neighbor,cell.walls[wall_num],depth+1);
+							if (winner) return true;
+							pieces_left++
+							cell.walls[wall_num].close();
+						}
+					}
+
+					return false;
+				}
+
+				var success = recursive_maze(this.start_cell(),null,0);
+				if (!success) {
+					throw "Cannot create unicursal maze with these parameters."
+				}
 			}
 
 			// Create a maze using the drunk walk algorithm.  In this
@@ -1534,10 +1589,10 @@
 					'name': 'Prim\'s Algorithm',
 					'algo': Maze.maze_styles.prim
 				},
-				//'unicursal': {
-				//	'name': 'unicursal',
-				//	'algo': Maze.maze_styles.unicursal
-				//},
+				'unicursal': {
+					'name': 'unicursal',
+					'algo': Maze.maze_styles.unicursal
+				},
 				'drunk_walk': {
 					'name': 'drunk_walk',
 					'algo': Maze.maze_styles.drunk_walk
