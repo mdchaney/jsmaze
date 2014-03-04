@@ -284,6 +284,28 @@
 				return points;
 			}
 
+			// Return a list of neighboring cells
+			Cell.prototype.neighbors = function() {
+				var ret = new Array;
+				for (var i=0 ; i < this.walls.length ; i++) {
+					var this_wall = this.walls[i];
+					var this_neighbor = this_wall.neighbor(this);
+					if (this_neighbor) { ret.push(this_neighbor); }
+				}
+				return ret;
+			}
+
+			// Return a list of neighboring cells that haven't been visited
+			Cell.prototype.unvisited_neighbors = function() {
+				var ret = new Array;
+				for (var i=0 ; i < this.walls.length ; i++) {
+					var this_wall = this.walls[i];
+					var this_neighbor = this_wall.neighbor(this);
+					if (this_neighbor && !this_neighbor.visited()) { ret.push(this_neighbor); }
+				}
+				return ret;
+			}
+
 			// A maze is a collection of cells with a path through them.
 			// It is two graphs that are interconnected - one which is a
 			// set of all walls (close and open) and the other a path
@@ -371,6 +393,99 @@
 				}
 
 				recursive_maze(this.start_cell(),null,0);
+			}
+
+			// This is Prim's algorithm.  The idea is to start at a random
+			// location (or at "the starting point", it ultimately won't
+			// matter) and simply add cells one at a time to the current
+			// maze in a random order.  Basically, any cell that's touching
+			// an existing maze cell is fair game for attaching to the
+			// maze.
+			// The "official" way of doing this is to separate the maze
+			// into three cell types: "in", "out", and "frontier".  "in"
+			// cells are part of the maze, "frontier" cells are those which
+			// are next to an "in" cell, and "out" are all others.  On each
+			// cycle a frontier cell is chosen at random, attached to the
+			// maze, and removed from the list of frontier cells.  All of
+			// its neighbors which are "out" then become frontier cells and
+			// the cycle is repeated.  It stops when there are no more
+			// frontier cells.
+			//
+			// There's no need for recursion.
+			Maze.maze_styles.prim = function() {
+
+				var frontier_cells = new Array;
+
+				// Doing this officially, start at a random location
+				var start = this.cells[Math.floor(Math.random() * this.cells.length)];
+				//var start = this.start_cell();
+
+				frontier_cells = start.unvisited_neighbors();
+
+				while (frontier_cells.length > 0) {
+					var next_cell = frontier_cells[Math.floor(Math.random() * frontier_cells.length)];
+					// My reading of Prim's algorithm is that we always
+					// connect back to the first cell for which this was a
+					// frontier.  Oh well.  I'd rather just make it random.
+					var visited_neighbor_walls = new Array;
+					var unvisited_neighbors = new Array;
+					for (var i=0 ; i<next_cell.walls.length ; i++) {
+						var this_wall = next_cell.walls[i];
+						var this_neighbor = this_wall.neighbor(next_cell);
+						if (this_neighbor) {
+							if (this_neighbor.visited()) {
+								visited_neighbor_walls.push(this_wall);
+							} else {
+								unvisited_neighbors.push(this_neighbor);
+							}
+						}
+					}
+					// now, we have a list of visited neighbors and a list of
+					// unvisited neighbors.  Unvisited neighbors get added to
+					// the frontier list while one of the visited neighbors
+					// will be the lucky neighbor to which we'll connect.
+					if (visited_neighbor_walls.length) {
+						var connect_to_num = Math.floor(Math.random() * visited_neighbor_walls.length);
+						var connect_to_wall = visited_neighbor_walls[connect_to_num];
+					} else {
+						// There are no visited neighbors, which will only occur
+						// when we're at the start.
+						for (var connect_to_num=0 ; connect_to_num < next_cell.walls.length ; connect_to_num++) {
+							if (next_cell.walls[connect_to_num].neighbor(next_cell) == start) {
+								var connect_to_wall = next_cell.walls[connect_to_num];
+								break;
+							}
+						}
+					}
+
+					connect_to_wall.open();
+
+					// Remove this cell from the frontier list
+					for (var i = 0 ; i < frontier_cells.length ; i++) {
+						if (frontier_cells[i] == next_cell) {
+							frontier_cells.splice(i,1);
+							break;
+						}
+					}
+
+					// And add all unvisited neighbors to the frontier list
+					// (if they're not already there)
+					for (var i = 0 ; i < unvisited_neighbors.length ; i++) {
+						var found = false;
+						for (var j = 0 ; j < frontier_cells.length ; j++) {
+							if (frontier_cells[j] == unvisited_neighbors[i]) {
+								found = true;
+								break;
+							}
+						}
+						if (!found) {
+							frontier_cells.push(unvisited_neighbors[i]);
+						}
+					}
+				}
+
+				// This needs to have depth calculated independently
+				this.find_depth(this.start_cell(), null, 0);
 			}
 
 			// My unicursal algorithm doesn't work well yet.  It sometimes
@@ -1414,6 +1529,10 @@
 				'recursive': {
 					'name': 'recursive',
 					'algo': Maze.maze_styles.recursive
+				},
+				'prim': {
+					'name': 'Prim\'s Algorithm',
+					'algo': Maze.maze_styles.prim
 				},
 				//'unicursal': {
 				//	'name': 'unicursal',
