@@ -154,6 +154,15 @@
 				}
 			}
 
+			Wall.prototype.close = function() {
+				if (this.state==1) {
+					return null;
+				} else {
+					this.state=1;
+					return true;
+				}
+			}
+
 			Wall.prototype.center = function() {
 				return(new Point((this.points[0].x+this.points[1].x)/2,(this.points[0].y+this.points[1].y)/2));
 			}
@@ -358,6 +367,155 @@
 							cell.walls[wall_num].open();
 							arguments.callee(neighbor,cell.walls[wall_num],depth+1);
 						}
+					}
+				}
+
+				recursive_maze(this.start_cell(),null,0);
+			}
+
+			// My unicursal algorithm doesn't work well yet.  It sometimes
+			// works.
+			//
+			// Odd way to make a maze - this is really a space filling
+			// curve.  The idea of this is to have one long path from
+			// start to finish with no dead ends.  The way to do this
+			// (or at least the way I'll do it) is that each time the maze
+			// touches a side or an existing path we have to check to make
+			// sure we didn't cut off any cells.  If we did, we backtrack
+			// by one cell, closing the entry wall.  In that case, after
+			// backtracking we need to next move to cell that will move us
+			// into the area that isn't filled - a wall between the
+			// original entry wall and the exit wall.  If there is none we
+			// need to backtrack again until we can find one.
+			Maze.maze_styles.unicursal = function() {
+				var end_cell = this.end_cell();
+
+				function check_neighbor(cell,entry_wall) {
+					if (!cell || cell == end_cell) {
+						return false;
+					} else {
+						var map = new Array(cell.walls.length);
+						cell.walls.forEach(function(wall,index,arr) {
+							var neighbor = wall.neighbor(cell);
+							map[index] = (!neighbor || neighbor.visited()) ? 'v' : 'u';
+						});
+						if (map.filter(function(x) { return x=='u'; }).length < 2) {
+							// This one only has a single way out
+							return true;
+						} else {
+							return false;
+						}
+					}
+				}
+
+				function recursive_maze(cell,entry_wall,depth) {
+					cell.depth=depth;
+					cell.entry_wall=entry_wall;
+					// Let's see if we're touching a cell that is either
+					// on the outside or is already part of the path,
+					// ignoring the cell from whence we came.
+					var pattern = new Array(cell.perm.length);
+					var must_visit = new Array(cell.perm.length);
+					for (var k=0 ; k<cell.walls.length ; k++) {
+						var neighbor = cell.walls[k].neighbor(cell);
+						pattern[k] = (!neighbor || neighbor.visited()) ? 'v' : 'u';
+						must_visit[k] = check_neighbor(neighbor, cell.walls[k]);
+					}
+					var must_visit_count = must_visit.filter(function(x) { return x; }).length;
+					if (must_visit_count > 1) {
+						// More than one "must visit cell", must backtrack
+						return true;
+					} else if (must_visit_count == 1) {
+						// Must visit this cell
+						var wall_num = must_visit.indexOf(true);
+						var neighbor = cell.walls[wall_num].neighbor(cell);
+						cell.walls[wall_num].open();
+						var backtrack = arguments.callee(neighbor,cell.walls[wall_num],depth+1);
+						if (backtrack) {
+							cell.walls[wall_num].close();
+							return false;
+						}
+					} else if (pattern.join('').match(/(v+|u+)/g).length >= 4) {
+						// We're touching an outside wall or another
+						// part of the path, make sure we didn't just
+						// cut off some cells.  If we did cut off some
+						// cells, there will be a closed path of walls
+						// around the cells.  If that closed path
+						// includes the "exit cell", it should be
+						// ignored.  If it doesn't include the exit
+						// cell, it'll be enclosed and we'll backtrack.
+						// There is likely a way to determine this based
+						// on whether the path is clockwise or CCW
+						// depending on the relationship between the
+						// current cell and the touched cell/wall, but
+						// I'll figure that out later.
+						//
+						// A little later: This might not completely solve
+						// it, but if we run into another wall we can
+						// determine if this block cuts a space into two
+						// pieces.  This is a dirt simple computation -
+						// between the current wall and the entry wall
+						// there should be closed walls with unvisited
+						// neighbor cells on each side.  The only
+						// difference is if we're at the end cell, in
+						// which case any unvisited neighbor cells will
+						// cause a backtrack.
+						//
+						// More simply stated, if we start at 0 and go
+						// through all the walls on the current cell,
+						// we may find alternating sections of visited
+						// cell/outer wall, unvisited cell, visited
+						// cell/outer wall, unvisited cell.  If we find
+						// that pattern, we backtrack.
+						//
+						// Okay, more.  From the current cell, we need to
+						// determine which cell to visit next.  Any other
+						// neighboring unvisited cells should have at least
+						// two walls that are on unvisited cells, and those
+						// two walls should share one end point.  So if the
+						// current square causes any of its neighbors to have
+						// only one openable wall we need to backtrack.
+						return true;
+					}
+					// If it's the last cell, we backtrack if there
+					// are any unvisited cells around it.
+					if (cell == end_cell) {
+						if (pattern.indexOf('u') > -1) {
+							return true;
+						}
+					} else {
+						// If it's not the last cell and it's a dead end, then
+						// we backtrack
+						if (pattern.join('').match(/^v+$/)) {
+							return true;
+						}
+					}
+
+					var backtracked = false;
+					var visited_elsewhere = false;
+
+					// Now, go through the surrounding cells and recurse
+					var possible_walls = [];
+					for (var k=0 ; k<cell.perm.length ; k++) {
+						var wall_num = cell.perm[k];
+						if (pattern[wall_num] == 'u') {
+							var neighbor = cell.walls[wall_num].neighbor(cell);
+							cell.walls[wall_num].open();
+							var backtrack = arguments.callee(neighbor,cell.walls[wall_num],depth+1);
+							if (backtrack) {
+								cell.walls[wall_num].close();
+								backtracked = true;
+							} else {
+								visited_elsewhere = true;
+							}
+						}
+					}
+
+					if (!visited_elsewhere && backtracked) {
+						return true;
+					} else {
+						// Don't backtrack
+						return false;
 					}
 				}
 
