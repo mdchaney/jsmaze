@@ -1841,7 +1841,7 @@
 				for (var key in Maze.maze_styles_info) {
 					var opt = document.createElement('option');
 					opt.setAttribute('value',key);
-					opt.appendChild(document.createTextNode(key));
+					opt.appendChild(document.createTextNode(Maze.maze_styles_info[key].name));
 					maze_algorithm_selector.appendChild(opt);
 				}
 
