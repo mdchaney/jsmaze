@@ -724,6 +724,9 @@
 
 					// Check if this is the end (yes, I'm aware of the
 					// optimization).
+					// Alternately, we could just say "if pieces_left is
+					// 0 then this cell is the end", maybe with an edge
+					// check.
 					if (cell == end_cell) {
 						if (pieces_left == 0) {
 							return true;
