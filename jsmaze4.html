@@ -716,7 +716,7 @@
 			Maze.maze_styles.unicursal = function() {
 
 				var end_cell = this.end_cell();
-				var pieces_left = this.cells.length-1;
+				var max_depth = this.cells.length-1;
 
 				function recursive_maze(cell,entry_wall,depth) {
 					cell.depth=depth;
@@ -724,11 +724,8 @@
 
 					// Check if this is the end (yes, I'm aware of the
 					// optimization).
-					// Alternately, we could just say "if pieces_left is
-					// 0 then this cell is the end", maybe with an edge
-					// check.
 					if (cell == end_cell) {
-						if (pieces_left == 0) {
+						if (depth == max_depth) {
 							return true;
 						} else {
 							return false;
@@ -740,11 +737,9 @@
 						var wall_num = cell.perm[k];
 						var neighbor = cell.walls[wall_num].neighbor(cell);
 						if (neighbor && !neighbor.visited()) {
-							pieces_left--;
 							cell.walls[wall_num].open();
 							var winner = arguments.callee(neighbor,cell.walls[wall_num],depth+1);
 							if (winner) return true;
-							pieces_left++
 							cell.walls[wall_num].close();
 						}
 					}
