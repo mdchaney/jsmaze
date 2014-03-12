@@ -217,10 +217,21 @@
 			function draw_triangles(triangles, svg) {
 				// Find a color 0 triangle, get distance from b to c
 				// and divide by 15.0 for line_width
+				var line_width = null;
 				for (var i=0 ; i<triangles.length ; i++) {
 					if (triangles[i].color == 0) {
-						var line_width = triangles[i].b.distance_to(triangles[i].c) / 15.0;
+						line_width = triangles[i].b.distance_to(triangles[i].c) / 15.0;
 						break;
+					}
+				}
+				// Argh - can't find any color 0 triangles, compute based
+				// on line a-b length of a color 1
+				if (!line_width) {
+					for (var i=0 ; i<triangles.length ; i++) {
+						if (triangles[i].color == 1) {
+							line_width = triangles[i].a.distance_to(triangles[i].c) / 20.0;
+							break;
+						}
 					}
 				}
 				for (var i=0 ; i<triangles.length ; i++) {
@@ -273,22 +284,70 @@
 
 			var iterations=parseInt(args['iterations']);
 			if (!iterations) iterations=1;
+			var pattern_name=args['pattern'];
+			if (!pattern_name) pattern_name='sun';
 
-			var triangles = [];
-
-			// doing this in semi-polar coordinates
-			for (var i=0 ; i<10 ; i++) {
-				var a = new Point(0,0);
-				var b = new Point(Math.cos((2*i-1)*Math.PI/10.0), Math.sin((2*i-1)*Math.PI/10.0));
-				var c = new Point(Math.cos((2*i+1)*Math.PI/10.0), Math.sin((2*i+1)*Math.PI/10.0));
-				// swap b and c every other time
-				if (i%2) {
-					var tmp=b;
-					b=c;
-					c=tmp;
-				}
-				triangles.push(new Triangle(0, a, b, c));
+			function set_up_form() {
+				var pattern_selector = document.getElementById('pattern-selector');
+				pattern_selector.value = pattern_name;
 			}
+
+			function restart() {
+				var pattern_selector = document.getElementById('pattern-selector');
+				pattern_name = pattern_selector.value;
+				iterations = 1;
+				triangles = make_initial_pattern(pattern_name);
+				make_a_penrose();
+			}
+
+			// Makes an initial pattern that will be iterated on
+			function make_initial_pattern(type) {
+
+				var ret = [];
+
+				if (type == 'sun') {
+					var a = new Point(0,0);
+
+					// This is a sun pattern, doing this in semi-polar coordinates
+					var points = new Array(10);
+					for (var i=0 ; i<10 ; i+=2) {
+						points[i] = new Point(Math.cos(2.0*i*Math.PI/10.0), Math.sin(2.0*i*Math.PI/10.0));
+						points[i+1] = new Point(Math.cos(2.0*(i+1)*Math.PI/10.0), Math.sin(2.0*(i+1)*Math.PI/10.0));
+					}
+
+					for (var i=0 ; i<10 ; i+=2) {
+						// These two triangles share point b
+						var b = points[i+1];
+						var c = points[i];
+						ret.push(new Triangle(0, a, b, c));
+						var c = points[(i+2)%10];
+						ret.push(new Triangle(0, a, b, c));
+					}
+				} else {
+					// This is a star pattern
+					var short_line = 0.5 / Math.cos(36.0 * Math.PI / 180.0);
+					var b = new Point(0,0);
+
+					var points = new Array(10);
+					for (var i=0 ; i<10 ; i+=2) {
+						points[i] = new Point(Math.cos(2.0*(i-0.5)*Math.PI/10.0), Math.sin(2.0*(i-0.5)*Math.PI/10.0));
+						points[i+1] = new Point(short_line * Math.cos(2.0*(i+0.5)*Math.PI/10.0), short_line * Math.sin(2.0*(i+0.5)*Math.PI/10.0));
+					}
+
+					for (var i=0 ; i<10 ; i+=2) {
+						// These two triangles share point b
+						var a = points[i+1];
+						var c = points[i];
+						ret.push(new Triangle(1, a, b, c));
+						var c = points[(i+2)%10];
+						ret.push(new Triangle(1, a, b, c));
+					}
+				}
+
+				return ret;
+			}
+
+			var triangles = make_initial_pattern(pattern_name);
 
 			for (var i=0 ; i<iterations-1 ; i++) {
 				triangles = iterate(triangles);
@@ -306,6 +365,7 @@
 				make_a_penrose();
 			}
 
+			add_body_onload(set_up_form);
 			add_body_onload(make_a_penrose);
 
 			//]]>
@@ -319,6 +379,12 @@
 			<h1>Penrose Tiling</h1>
 
 			<div id="form">
+				<select id="pattern-selector">
+					<option value="sun">sun</option>
+					<option value="star">star</option>
+				</select>
+				<input type="button" value="Restart" id="go-button" onclick="restart();" />
+				|
 				<input type="button" value="Iterate" id="go-button" onclick="perform_iteration();" />
 			</div>
 
