@@ -1,0 +1,337 @@
+<?xml-stylesheet href="#maze-style" type="text/css"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<head>
+		<title>Penrose Tiling</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<style type="text/css" id="maze-style">
+			html { width: 100%; height: 100%; }
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			body { width: 100%; height: 100%; background: #ddd; }
+			div#wrap { width: 90%; height: 90%; margin: auto auto; }
+			div#svg-container { width: 100%; height: 90%; background: #fff; }
+			h1 { float: left; }
+			div#form { float: right; width: 70%; min-height: 30px; position: relative; top: 20px; }
+		</style>
+		<script type="text/javascript">
+			// <![CDATA[
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.indexOf('[]')==pname.length-2) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			// Easily add functions to run at load time
+			function add_body_onload(func) {
+				var old_body_onload=window.onload;
+				window.onload=function() {
+					if (old_body_onload) { old_body_onload(); }
+					func();
+				}
+			}
+
+			//////////////////////////////////////////////////////////////
+			//                                                          //
+			//  Here's the Penrose stuff                                //
+			//  Based on the excellent article here:                    //
+			//  http://preshing.com/20110831/penrose-tiling-explained/  //
+			//                                                          //
+			//////////////////////////////////////////////////////////////
+
+			var golden_ratio = (1 + Math.sqrt(5)) / 2.0;
+
+			function Point(x, y) {
+				this.x=x;
+				this.y=y;
+			}
+
+			Point.prototype = {
+				plus: function(other_point) {
+					return new Point(this.x+other_point.x, this.y+other_point.y);
+				},
+				minus: function(other_point) {
+					return new Point(this.x-other_point.x, this.y-other_point.y);
+				},
+				divided_by: function(divisor) {
+					return new Point(this.x / divisor, this.y / divisor);
+				},
+				// for generalized code the multiplier might be another
+				// point.  Assuming a fixed number here.
+				times: function(multiplier) {
+					return new Point(this.x * multiplier, this.y * multiplier);
+				},
+				distance_to: function(other_point) {
+					return Math.sqrt(Math.pow(other_point.x-this.x,2) + Math.pow(other_point.y-this.y,2));
+				}
+			};
+
+			var color_angles = [
+				Math.PI * 36.0 / 180.0,
+				Math.PI * 108.0 / 180.0
+			];
+
+			var colors = [ '#f55', '#66f' ];
+
+			var scale = 100.0;
+
+			// Triangle with three points.  Note that no line is
+			// drawn between points b and c, so we'll always end up
+			// with b & c lining up with b & c from another such
+			// triangle to make a rhombus.
+			// The "color" is either 0 or 1.  Color of 0 indicates
+			// that the angle at point a (between lines a-b and b-c)
+			// is 36 degrees.  For color 1 it is 108 degrees.
+			function Triangle(color, a, b, c) {
+				this.color = color;
+				this.a = a;
+				this.b = b;
+				this.c = c;
+				this.angle = color_angles[this.color];
+			}
+
+			Triangle.prototype = {
+				// subdivide will return an array of triangles.  For
+				// color 0 it will return 2 triangles; for color 1 it
+				// will return 3 triangles.
+				subdivide: function() {
+					if (this.color == 0) {
+						var p = this.a.plus(this.b.minus(this.a).divided_by(golden_ratio));
+						return [new Triangle(0, this.c, p, this.b),
+									new Triangle(1, p, this.c, this.a)];
+					} else if (this.color == 1) {
+						var q = this.b.plus(this.a.minus(this.b).divided_by(golden_ratio));
+						var r = this.b.plus(this.c.minus(this.b).divided_by(golden_ratio));
+						return [new Triangle(1, r, this.c, this.a),
+									new Triangle(1, q, r, this.b),
+									new Triangle(0, r, q, this.a)];
+					}
+				}
+			};
+
+			// Takes an array of triangles and returns a new array
+			// of triangles representing one iteration of subdivision.
+			function iterate(triangles) {
+				var ret = [];
+				for (var i=0 ; i<triangles.length ; i++) {
+					var new_set = triangles[i].subdivide();
+					for (var j=0 ; j<new_set.length ; j++) {
+						ret.push(new_set[j]);
+					}
+				}
+				return ret;
+			}
+
+			//////////////////////////////////////////////////////////////
+			//                                                          //
+			//       Everything from here down pertains to display      //
+			//                                                          //
+			//////////////////////////////////////////////////////////////
+
+			// Clear an existing svg element
+			function destroy_svg_element(div_id) {
+				var container_div = document.getElementById(div_id);
+				var svgs = container_div.getElementsByTagName('svg');
+				for (var i=0 ; i<svgs.length ; i++) {
+					container_div.removeChild(svgs[i]);
+				}
+			}
+
+			// Creates an svg element inside a container div
+			function create_svg_element(div_id) {
+				var container_div = document.getElementById(div_id);
+				var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+				svg.setAttribute("version", "1.2");
+				svg.setAttribute("baseProfile", "tiny");
+				svg.setAttribute("width", "100%");
+				svg.setAttribute("height", "100%");
+				svg.setAttribute("viewBox", "-1.02 -1.02 2.04 2.04");
+				var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+				var stylesheet = document.createTextNode("line.wall.open { display: none; }");
+				style.appendChild(stylesheet);
+				svg.appendChild(style);
+				container_div.appendChild(svg);
+				return svg;
+			}
+
+			// Get the svg
+			function find_svg(div_id) {
+				var container_div = document.getElementById(div_id);
+				return container_div.getElementsByTagName('svg')[0];
+			}
+
+			// Find a reference to the svg's stylesheet
+			function svg_find_stylesheet(svg) {
+				return(svg.getElementsByTagName('style')[0]);
+			}
+
+			// Get the svg's width.  The issue here is that on Firefox the
+			// svg's offsetWidth is undefined, so I need to instead get the
+			// parent's offsetWidth.
+			function svg_width(svg) {
+				return svg.offsetWidth || svg.parentNode.offsetWidth;
+			}
+
+			// Get the height of the svg.
+			function svg_height(svg) {
+				return svg.offsetHeight || svg.parentNode.offsetHeight;
+			}
+
+			// Draws a set of triangles
+			function draw_triangles(triangles, svg) {
+				// Find a color 0 triangle, get distance from b to c
+				// and divide by 15.0 for line_width
+				for (var i=0 ; i<triangles.length ; i++) {
+					if (triangles[i].color == 0) {
+						var line_width = triangles[i].b.distance_to(triangles[i].c) / 15.0;
+						break;
+					}
+				}
+				for (var i=0 ; i<triangles.length ; i++) {
+					draw_triangle(triangles[i], line_width, svg);
+				}
+			}
+
+			// Draws a single triangle given a scale
+			function draw_triangle(triangle, line_width, svg) {
+				var points_list = [];
+				points_list.push("" + triangle.a.x + "," + triangle.a.y);
+				points_list.push("" + triangle.b.x + "," + triangle.b.y);
+				points_list.push("" + triangle.c.x + "," + triangle.c.y);
+				var p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+				p.setAttribute("points", points_list.join(" "));
+				p.setAttribute("fill", colors[triangle.color]);
+				p.setAttribute("class", "triangle color-"+triangle.color);
+				svg.appendChild(p);
+				// create the black borders
+				draw_line(triangle.a, triangle.b, '#000', line_width, svg);
+				draw_line(triangle.a, triangle.c, '#000', line_width, svg);
+			}
+
+			function draw_line(p1, p2, color, line_width, svg) {
+				var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+				l.setAttribute("x1", p1.x)
+				l.setAttribute("y1", p1.y)
+				l.setAttribute("x2", p2.x)
+				l.setAttribute("y2", p2.y)
+				l.setAttribute("stroke", color);
+				l.setAttribute("stroke-width", line_width);
+				l.setAttribute("class", "wall");
+				svg.appendChild(l);
+			}
+
+			// Just draw a "point"
+			function draw_point(x, y, color, svg) {
+				var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+				c.setAttribute("cx", x)
+				c.setAttribute("cy", y)
+				c.setAttribute("r", 2);
+				c.setAttribute("stroke", color);
+				c.setAttribute("stroke-width", "1");
+				c.setAttribute("class", "point");
+				svg.appendChild(c);
+			}
+
+			// Leaving these as globals
+			var args=get_args();
+
+			var iterations=parseInt(args['iterations']);
+			if (!iterations) iterations=1;
+
+			var triangles = [];
+
+			// doing this in semi-polar coordinates
+			for (var i=0 ; i<10 ; i++) {
+				var a = new Point(0,0);
+				var b = new Point(Math.cos((2*i-1)*Math.PI/10.0), Math.sin((2*i-1)*Math.PI/10.0));
+				var c = new Point(Math.cos((2*i+1)*Math.PI/10.0), Math.sin((2*i+1)*Math.PI/10.0));
+				// swap b and c every other time
+				if (i%2) {
+					var tmp=b;
+					b=c;
+					c=tmp;
+				}
+				triangles.push(new Triangle(0, a, b, c));
+			}
+
+			for (var i=0 ; i<iterations-1 ; i++) {
+				triangles = iterate(triangles);
+			}
+
+			// Actually makes the penrose
+			function make_a_penrose() {
+				destroy_svg_element("svg-container");
+				var svg = create_svg_element("svg-container");
+				draw_triangles(triangles, svg);
+			}
+
+			function perform_iteration() {
+				triangles = iterate(triangles);
+				make_a_penrose();
+			}
+
+			add_body_onload(make_a_penrose);
+
+			//]]>
+		</script>
+	</head>
+
+	<body>
+
+		<div id="wrap">
+
+			<h1>Penrose Tiling</h1>
+
+			<div id="form">
+				<input type="button" value="Iterate" id="go-button" onclick="perform_iteration();" />
+			</div>
+
+			<br clear="left" />
+
+			<div id="svg-container"></div>
+
+			<script type="text/javascript">
+				// <![CDATA[
+				//]]>
+			</script>
+
+		</div>
+	</body>
+
+</html>
