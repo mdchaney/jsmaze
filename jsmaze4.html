@@ -102,28 +102,138 @@
 				this.walls=[];
 			}
 
-			Point.prototype.angle_to = function(other_point) {
-				return Math.atan2(other_point.y-this.y,other_point.x-this.x)
-			}
+			Point.prototype = {
+				// Add another point to this one.
+				plus: function(other_point) {
+					return new Point(this.x+other_point.x, this.y+other_point.y);
+				},
 
-			Point.prototype.next_cw_wall = function(this_wall) {
-				var wall_at = null;
-				for (var j=0 ; j<this.walls.length ; j++) {
-					if (this.walls[j] == this_wall) {
-						wall_at = j;
-						break;
+				// Subtract another point from this one
+				minus: function(other_point) {
+					return new Point(this.x-other_point.x, this.y-other_point.y);
+				},
+
+				// Divide the point
+				divided_by: function(divisor) {
+					return new Point(this.x / divisor, this.y / divisor);
+				},
+
+				// for generalized code the multiplier might be another
+				// point.  Assuming a fixed number here.
+				times: function(multiplier) {
+					return new Point(this.x * multiplier, this.y * multiplier);
+				},
+
+				// Compute distance between points.  Between "distance_to"
+				// and "angle_to" we have a set of polar coordinates of
+				// "other_point" if "this" is at the origin.
+				distance_to: function(other_point) {
+					return Math.sqrt(Math.pow(other_point.x-this.x,2) + Math.pow(other_point.y-this.y,2));
+				},
+
+				// From this point, find the angle to another point
+				angle_to: function(other_point) {
+					return Math.atan2(other_point.y-this.y,other_point.x-this.x)
+				},
+
+				// Given a wall, find the next wall in clockwise order
+				next_cw_wall: function(this_wall) {
+					var wall_at = null;
+					for (var j=0 ; j<this.walls.length ; j++) {
+						if (this.walls[j] == this_wall) {
+							wall_at = j;
+							break;
+						}
 					}
-				}
-				if (wall_at !== null) {
-					if (wall_at > 0) {
-						return this.walls[wall_at-1];
+					if (wall_at !== null) {
+						if (wall_at > 0) {
+							return this.walls[wall_at-1];
+						} else {
+							return this.walls[this.walls.length-1];
+						}
 					} else {
-						return this.walls[this.walls.length-1];
+						return null;
 					}
-				} else {
-					return null;
+				},
+
+				// Sorts all walls attached to this point in rotational order
+				sort_walls: function() {
+					var walls = [];
+					for (var j = 0 ; j < this.walls.length ; j++) {
+						var wall = this.walls[j];
+						walls.push([wall,this.angle_to(wall.other_end(this))]);
+					}
+					function wall_sorter(a,b) { return(a[1]-b[1]); }
+					walls.sort(wall_sorter);
+					this.walls = [];
+					for (var j = 0 ; j < walls.length ; j++) {
+						this.walls.push(walls[j][0]);
+					}
+				},
+
+				// Removes duplicate walls - they should already be sorted.
+				// This will remove the wall reference from the other end
+				// point, also.
+				uniq_walls: function() {
+					// assuming there are walls - if none or one return immediately
+					if (this.walls.length < 2) return;
+					var last_wall_other_end = null;
+					for (var j = this.walls.length-1 ; j>=0 ; j--) {
+						var wall = this.walls[j];
+						var other_end = wall.other_end(this);
+						if (other_end == last_wall_other_end) {
+							// This wall is going away - remove from other end
+							// point wall list, also
+							this.walls.splice(j,1);
+							for (var k=other_end.walls.length-1 ; k>=0 ; k--) {
+								if (other_end.walls[k] === wall) {
+									other_end.walls.splice(k,1);
+								}
+							}
+						} else {
+							last_wall_other_end = other_end;
+						}
+					}
+				},
+
+				// Find all "unfound" faces attached to this point, return
+				// as an array of Cells.
+				find_faces: function(max_face_size) {
+					var ret_cells = [];
+					for (var i=0 ; i<this.walls.length ; i++) {
+						var wall = this.walls[i];
+						if (!wall.traversed(this,wall.other_end(this))) {
+							var safety_counter = 0;
+							var walls = [];
+							var this_point=this;
+							var other_point;
+							var signed_area = 0;   // Make sure we're going around clockwise
+							do {
+								walls.push(wall);
+								other_point = wall.other_end(this_point);
+								signed_area += (this_point.x * other_point.y - other_point.x * this_point.y);
+								this_point = wall.traverse(this_point,other_point);
+								wall = this_point.next_cw_wall(wall)
+								safety_counter++;
+							} while (this_point != this && wall);
+							if (walls.length <= max_face_size && signed_area > 0 && wall) {
+								ret_cells.push(new Cell(walls));
+							}
+						}
+					}
+					return ret_cells;
+				},
+
+				// returns a string representing the point
+				toString: function() {
+					return "" + this.x + ',' + this.y;
+				},
+
+				// remove all walls
+				remove_walls: function() {
+					this.walls = [];
 				}
-			}
+			};
 
 			// Walls have a few pieces of information: two end points, the
 			// state (open (0) or closed (1)), and the two cells that it
@@ -141,85 +251,104 @@
 				this.traversed_up=false;
 			}
 
-			Wall.prototype.is_open = function() {
-				return (this.state==0);
-			}
+			Wall.prototype = {
 
-			Wall.prototype.open = function() {
-				if (this.state==0) {
-					return null;
-				} else {
-					this.state=0;
-					return true;
+				// Return a point representing the center of this wall
+				center: function() {
+					return(new Point((this.points[0].x+this.points[1].x)/2,(this.points[0].y+this.points[1].y)/2));
+				},
+
+				// Returns true if the wall is open
+				is_open: function() {
+					return (this.state==0);
+				},
+
+				// Marks a wall as open, returns "true" if the wall
+				// state changes as a result
+				open: function() {
+					if (this.state==0) {
+						return null;
+					} else {
+						this.state=0;
+						return true;
+					}
+				},
+
+				// Marks a wall as closed, returns "true" if the wall
+				// state changes as a result
+				close: function() {
+					if (this.state==1) {
+						return null;
+					} else {
+						this.state=1;
+						return true;
+					}
+				},
+
+				// Given a point, returns the "other end" point on the wall.
+				other_end: function(point) {
+					if (this.points[0] == point) {
+						return(this.points[1]);
+					} else if (this.points[1] == point) {
+						return(this.points[0]);
+					} else {
+						return null;
+					}
+				},
+
+				// Traverses a wall and marks the direction as traversed.
+				traverse: function(point0, point1) {
+					if (point0 == this.points[0] && point1 == this.points[1]) {
+						this.traversed_down = true;
+						return point1;
+					} else if (point0 == this.points[1] && point1 == this.points[0]) {
+						this.traversed_up = true;
+						return point1;
+					} else {
+						return null;
+					}
+				},
+
+				// Returns true if wall has already been traversed in given
+				// direction.
+				traversed: function(point0, point1) {
+					if (point0 == this.points[0] && point1 == this.points[1]) {
+						return this.traversed_down;
+					} else if (point0 == this.points[1] && point1 == this.points[0]) {
+						return this.traversed_up;
+					} else {
+						return null;
+					}
+				},
+
+				// returns a string representing the wall
+				toString: function() {
+					return this.points[0].toString() + ':' + this.points[1].toString();
+				},
+
+				// Each wall has one or two cells (it's possible that
+				// an edge wall may have only one cell).  This will
+				// return "undefined" if there is no neighbor, otherwise it
+				// will return the neighbor given a reference to one cell.
+				neighbor: function(cell) {
+					if (this.cells[0] == cell) {
+						return this.cells[1];
+					} else {
+						return this.cells[0];
+					}
+				},
+
+				// Helper to get the length of a wall
+				length: function() {
+					return this.points[0].distance_to(this.points[1]);
+				},
+
+				// Get the angle of the wall
+				angle: function() {
+					return this.points[0].angle_to(this.points[1]);
 				}
-			}
 
-			Wall.prototype.close = function() {
-				if (this.state==1) {
-					return null;
-				} else {
-					this.state=1;
-					return true;
-				}
-			}
-
-			Wall.prototype.center = function() {
-				return(new Point((this.points[0].x+this.points[1].x)/2,(this.points[0].y+this.points[1].y)/2));
-			}
-
-			// Given a point, returns the "other end" point on the wall.
-			Wall.prototype.other_end = function(point) {
-				if (this.points[0] == point) {
-					return(this.points[1]);
-				} else if (this.points[1] == point) {
-					return(this.points[0]);
-				} else {
-					return null;
-				}
-			}
-
-			Wall.prototype.traverse = function(point0, point1) {
-				if (point0 == this.points[0] && point1 == this.points[1]) {
-					this.traversed_down = true;
-					return point1;
-				} else if (point0 == this.points[1] && point1 == this.points[0]) {
-					this.traversed_up = true;
-					return point1;
-				} else {
-					return null;
-				}
-			}
-
-			Wall.prototype.traversed = function(point0, point1) {
-				if (point0 == this.points[0] && point1 == this.points[1]) {
-					return this.traversed_down;
-				} else if (point0 == this.points[1] && point1 == this.points[0]) {
-					return this.traversed_up;
-				} else {
-					return null;
-				}
-			}
-
-			Wall.prototype.toString = function() {
-				return "" + this.points[0].x + ',' + this.points[0].y + ':' + this.points[1].x + ',' + this.points[1].y;
-			}
-
-			// Each wall has one or two cells (it's possible that
-			// an edge wall may have only one cell).  This will
-			// return "undefined" if there is no neighbor, otherwise it
-			// will return the neighbor given a reference to one cell.
-			Wall.prototype.neighbor = function(cell) {
-				if (this.cells[0] == cell) {
-					return this.cells[1];
-				} else {
-					return this.cells[0];
-				}
-			}
-
-			// Helper to get the length of a wall
-			Wall.prototype.length = function() {
-				return Math.sqrt(Math.pow(this.points[0].x-this.points[1].x,2) + Math.pow(this.points[0].y-this.points[1].y,2));
-			}
+			};
 
 			// Cells have a set of walls along with a few other pieces of
 			// information that are used while generating a maze.
@@ -239,72 +368,75 @@
 				this.serial=undefined;
 			}
 
-			// Returns true if the cell has an open wall
-			Cell.prototype.visited = function() {
-				for (var i=0 ; i<this.walls.length ; i++) {
-					if (this.walls[i].is_open()) {
-						return true;
+			Cell.prototype = {
+
+				// Returns a point representing the exact center of the cell.
+				center: function() {
+					var x_avg = 0.0;
+					for (var i=0 ; i<this.walls.length ; i++) {
+						x_avg += this.walls[i].points[0].x;
+						x_avg += this.walls[i].points[1].x;
 					}
-				}
-				return false;
-			}
-
-			// Returns a point representing the exact center of the cell.
-			Cell.prototype.center = function() {
-				var x_avg = 0.0;
-				for (var i=0 ; i<this.walls.length ; i++) {
-					x_avg += this.walls[i].points[0].x;
-					x_avg += this.walls[i].points[1].x;
-				}
-				x_avg /= this.walls.length * 2;
-				var y_avg = 0.0;
-				for (var i=0 ; i<this.walls.length ; i++) {
-					y_avg += this.walls[i].points[0].y;
-					y_avg += this.walls[i].points[1].y;
-				}
-				y_avg /= this.walls.length * 2;
-				return(new Point(x_avg,y_avg));
-			}
-
-			// Return a list of all vertices of a cell, in order
-			Cell.prototype.vertices = function() {
-				var points = [];
-				// I need to pick only a single point from each wall, and it
-				// will be the point that isn't in the next wall.
-				for (var i=0 ; i<this.walls.length ; i++) {
-					var this_wall = this.walls[i];
-					var next_wall = this.walls[i+1];
-					if (!next_wall) { next_wall = this.walls[0]; }
-					if (this_wall.points[0] != next_wall.points[0] && this_wall.points[0] != next_wall.points[1]) {
-						points.push(this_wall.points[0]);
-					} else {
-						points.push(this_wall.points[1]);
+					x_avg /= this.walls.length * 2;
+					var y_avg = 0.0;
+					for (var i=0 ; i<this.walls.length ; i++) {
+						y_avg += this.walls[i].points[0].y;
+						y_avg += this.walls[i].points[1].y;
 					}
-				}
-				return points;
-			}
+					y_avg /= this.walls.length * 2;
+					return(new Point(x_avg,y_avg));
+				},
 
-			// Return a list of neighboring cells
-			Cell.prototype.neighbors = function() {
-				var ret = new Array;
-				for (var i=0 ; i < this.walls.length ; i++) {
-					var this_wall = this.walls[i];
-					var this_neighbor = this_wall.neighbor(this);
-					if (this_neighbor) { ret.push(this_neighbor); }
-				}
-				return ret;
-			}
+				// Return a list of all vertices of a cell, in order
+				vertices: function() {
+					var points = [];
+					// I need to pick only a single point from each wall, and it
+					// will be the point that isn't in the next wall.
+					for (var i=0 ; i<this.walls.length ; i++) {
+						var this_wall = this.walls[i];
+						var next_wall = this.walls[i+1];
+						if (!next_wall) { next_wall = this.walls[0]; }
+						if (this_wall.points[0] != next_wall.points[0] && this_wall.points[0] != next_wall.points[1]) {
+							points.push(this_wall.points[0]);
+						} else {
+							points.push(this_wall.points[1]);
+						}
+					}
+					return points;
+				},
 
-			// Return a list of neighboring cells that haven't been visited
-			Cell.prototype.unvisited_neighbors = function() {
-				var ret = new Array;
-				for (var i=0 ; i < this.walls.length ; i++) {
-					var this_wall = this.walls[i];
-					var this_neighbor = this_wall.neighbor(this);
-					if (this_neighbor && !this_neighbor.visited()) { ret.push(this_neighbor); }
+				// Return a list of neighboring cells
+				neighbors: function() {
+					var ret = new Array;
+					for (var i=0 ; i < this.walls.length ; i++) {
+						var this_wall = this.walls[i];
+						var this_neighbor = this_wall.neighbor(this);
+						if (this_neighbor) { ret.push(this_neighbor); }
+					}
+					return ret;
+				},
+
+				// Return a list of neighboring cells that haven't been visited
+				unvisited_neighbors: function() {
+					var ret = new Array;
+					for (var i=0 ; i < this.walls.length ; i++) {
+						var this_wall = this.walls[i];
+						var this_neighbor = this_wall.neighbor(this);
+						if (this_neighbor && !this_neighbor.visited()) { ret.push(this_neighbor); }
+					}
+					return ret;
+				},
+
+				visited: function() {
+					for (var i=0 ; i<this.walls.length ; i++) {
+						if (this.walls[i].is_open()) {
+							return true;
+						}
+					}
+					return false;
 				}
-				return ret;
-			}
+
+			};
 
 			// A maze is a collection of cells with a path through them.
 			// It is two graphs that are interconnected - one which is a
@@ -354,7 +486,8 @@
 				// out later.
 				// TODO: figure out a more efficient way to do this
 				for (var j=0 ; j<this.points.length ; j++) {
-					this.find_faces(this.points[j], this.cells);
+					var faces=this.points[j].find_faces(this.base_style.max_face_size);
+					this.cells = this.cells.concat(faces);
 				}
 				// At this point, we're ready to actually make a maze.  Get
 				// the start and end cells, then generate the maze.
@@ -1668,19 +1801,7 @@
 			// each point in order of angle.
 			Maze.prototype.sort_walls_for_points = function(points) {
 				for (var i = 0 ; i < points.length ; i++) {
-					var point = points[i];
-					// array of arrays: [wall, angle]
-					var walls = [];
-					for (var j = 0 ; j < point.walls.length ; j++) {
-						var wall = point.walls[j];
-						walls.push([wall,point.angle_to(wall.other_end(point))]);
-					}
-					function wall_sorter(a,b) { return(a[1]-b[1]); }
-					walls.sort(wall_sorter);
-					point.walls = [];
-					for (var j = 0 ; j < walls.length ; j++) {
-						point.walls.push(walls[j][0]);
-					}
+					points[i].sort_walls();
 				}
 			}
 
