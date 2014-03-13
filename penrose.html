@@ -215,25 +215,7 @@
 
 			// Draws a set of triangles
 			function draw_triangles(triangles, svg) {
-				// Find a color 0 triangle, get distance from b to c
-				// and divide by 15.0 for line_width
-				var line_width = null;
-				for (var i=0 ; i<triangles.length ; i++) {
-					if (triangles[i].color == 0) {
-						line_width = triangles[i].b.distance_to(triangles[i].c) / 15.0;
-						break;
-					}
-				}
-				// Argh - can't find any color 0 triangles, compute based
-				// on line a-b length of a color 1
-				if (!line_width) {
-					for (var i=0 ; i<triangles.length ; i++) {
-						if (triangles[i].color == 1) {
-							line_width = triangles[i].a.distance_to(triangles[i].c) / 20.0;
-							break;
-						}
-					}
-				}
+				line_width = triangles[0].a.distance_to(triangles[0].b) / 100.0;
 				for (var i=0 ; i<triangles.length ; i++) {
 					draw_triangle(triangles[i], line_width, svg);
 				}
