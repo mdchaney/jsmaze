@@ -1706,6 +1706,233 @@
 				this.end_point = points_tracker[ring_count][Math.round(density / 2)];
 			}
 
+			function penrose_maze(style, iterations, all_points, all_walls, maze) {
+
+				var golden_ratio = (1 + Math.sqrt(5)) / 2.0;
+
+				// Triangle with three points.  Note that no line is
+				// drawn between points b and c, so we'll always end up
+				// with b & c lining up with b & c from another such
+				// triangle to make a rhombus.
+				// The "color" is either 0 or 1.  Color of 0 indicates
+				// that the angle at point a (between lines a-b and a-c)
+				// is 36 degrees.  For color 1 it is 108 degrees.
+				function Triangle(color, a, b, c) {
+					this.color = color;
+					this.a = a;
+					this.b = b;
+					this.c = c;
+				}
+
+				Triangle.prototype = {
+					// subdivide will return an array of triangles.  For
+					// color 0 it will return 2 triangles; for color 1 it
+					// will return 3 triangles.
+					subdivide: function() {
+						if (this.color == 0) {
+							var p = this.a.plus(this.b.minus(this.a).divided_by(golden_ratio));
+							return [new Triangle(0, this.c, p, this.b),
+										new Triangle(1, p, this.c, this.a)];
+						} else if (this.color == 1) {
+							var q = this.b.plus(this.a.minus(this.b).divided_by(golden_ratio));
+							var r = this.b.plus(this.c.minus(this.b).divided_by(golden_ratio));
+							return [new Triangle(1, r, this.c, this.a),
+										new Triangle(1, q, r, this.b),
+										new Triangle(0, r, q, this.a)];
+						}
+					},
+
+					// Remove all wall references from points
+					remove_walls: function() {
+						this.a.remove_walls();
+						this.b.remove_walls();
+						this.c.remove_walls();
+					}
+				};
+
+				// Turn an array of Triangles into an array of Cells with
+				// walls.
+				function triangles_to_points_and_walls(triangles, all_points, all_walls) {
+
+					// Simple way to get unique list of points - this first
+					// iteration ensures that all points that are on top of each
+					// other are mapped to a single point.
+					var points_lookup = {};
+					for (var i=0 ; i<triangles.length ; i++) {
+						var triangle = triangles[i];
+						triangle.remove_walls();
+						if (points_lookup[triangle.a.toString()]) {
+							if (points_lookup[triangle.a.toString()] != triangle.a) {
+								triangle.a = points_lookup[triangle.a.toString()];
+							}
+						} else {
+							points_lookup[triangle.a.toString()] = triangle.a;
+						}
+						if (points_lookup[triangle.b.toString()]) {
+							if (points_lookup[triangle.b.toString()] != triangle.b) {
+								triangle.b = points_lookup[triangle.b.toString()];
+							}
+						} else {
+							points_lookup[triangle.b.toString()] = triangle.b;
+						}
+						if (points_lookup[triangle.c.toString()]) {
+							if (points_lookup[triangle.c.toString()] != triangle.c) {
+								triangle.c = points_lookup[triangle.c.toString()];
+							}
+						} else {
+							points_lookup[triangle.c.toString()] = triangle.c;
+						}
+					}
+
+					// Now, with all points corrected make the walls
+					for (var i=0 ; i<triangles.length ; i++) {
+						var triangle = triangles[i];
+						// Each triangle has 3 points and two walls - ab and ac.
+						var wall = new_unique_wall(triangle.a,triangle.b);
+						if (wall) all_walls.push(wall);
+						wall = new_unique_wall(triangle.a,triangle.c);
+						if (wall) all_walls.push(wall);
+						//wall = new_unique_wall(triangle.b,triangle.c);
+						//if (wall) all_walls.push(wall);
+					}
+
+					// Get all points
+					for (var pointstr in points_lookup) {
+						if (points_lookup.hasOwnProperty(pointstr)) {
+							var point = points_lookup[pointstr];
+							all_points.push(point);
+						}
+					}
+
+				}
+
+				// Only create a wall if another such wall doesn't exist
+				function new_unique_wall(p1,p2) {
+					var found=false;
+					for (var i=0 ; i<p1.walls.length ; i++) {
+						if (p1.walls[i].other_end(p1) == p2) {
+							found = true;
+							break;
+						}
+					}
+					if (found) {
+						return false;
+					} else {
+						return new Wall(p1,p2);
+					}
+				}
+
+				// Takes an array of triangles and returns a new array
+				// of triangles representing one iteration of subdivision.
+				function penrose_iteration(triangles, iterations) {
+					var start = triangles, ret = [];
+					if (!iterations || iterations<1) iterations=1;
+					for (var j=0 ; j<iterations ; j++) {
+						ret = [];
+						for (var i=0 ; i<start.length ; i++) {
+							ret = ret.concat(start[i].subdivide());
+						}
+						start = ret;
+					}
+					return ret;
+				}
+
+				// Makes an initial pattern that will be iterated on
+				function make_penrose_pattern(type) {
+
+					var ret = [];
+
+					if (type == 'sun') {
+						var a = new Point(0,0);
+
+						// This is a sun pattern, doing this in semi-polar coordinates
+						var points = new Array(10);
+						for (var i=0 ; i<10 ; i+=2) {
+							points[i] = new Point(Math.cos(2.0*i*Math.PI/10.0), Math.sin(2.0*i*Math.PI/10.0));
+							points[i+1] = new Point(Math.cos(2.0*(i+1)*Math.PI/10.0), Math.sin(2.0*(i+1)*Math.PI/10.0));
+						}
+
+						for (var i=0 ; i<10 ; i+=2) {
+							// These two triangles share point b
+							var b = points[i+1];
+							var c = points[i];
+							ret.push(new Triangle(0, a, b, c));
+							var c = points[(i+2)%10];
+							ret.push(new Triangle(0, a, b, c));
+						}
+					} else {
+						// This is a star pattern
+						var short_line = 0.5 / Math.cos(36.0 * Math.PI / 180.0);
+						var b = new Point(0,0);
+
+						var points = new Array(10);
+						for (var i=0 ; i<10 ; i+=2) {
+							points[i] = new Point(Math.cos(2.0*(i-0.5)*Math.PI/10.0), Math.sin(2.0*(i-0.5)*Math.PI/10.0));
+							points[i+1] = new Point(short_line * Math.cos(2.0*(i+0.5)*Math.PI/10.0), short_line * Math.sin(2.0*(i+0.5)*Math.PI/10.0));
+						}
+
+						for (var i=0 ; i<10 ; i+=2) {
+							// These two triangles share point b
+							var a = points[i+1];
+							var c = points[i];
+							ret.push(new Triangle(1, a, b, c));
+							var c = points[(i+2)%10];
+							ret.push(new Triangle(1, a, b, c));
+						}
+					}
+
+					return ret;
+				}
+
+				var triangles = make_penrose_pattern(style);
+				triangles = penrose_iteration(triangles, iterations);
+				triangles_to_points_and_walls(triangles, all_points, all_walls);
+				// Make start and end - set to next to greatest x and next
+				// to least x
+				var biggest=null, second_biggest=null;
+				var smallest=null, second_smallest=null;
+				for (var x=0 ; x<all_points.length ; x++) {
+					var point = all_points[x];
+					if (!biggest) {
+						biggest = point;
+					} else {
+						if (point.x > biggest.x) {
+							second_biggest = biggest;
+							biggest = point;
+						}
+					}
+					if (!smallest) {
+						smallest = point;
+					} else {
+						if (point.x < smallest.x) {
+							second_smallest = smallest;
+							smallest = point;
+						}
+					}
+				}
+				maze.start_point = second_smallest;
+				maze.end_point = second_biggest;
+
+				// scale and translate
+				for (var x=0 ; x<all_points.length ; x++) {
+					var point = all_points[x];
+					point.x = point.x * 50.0 + 50.0;
+					point.y = point.y * 50.0 + 50.0;
+				}
+
+				// set xsize and ysize
+				maze.xsize=100;
+				maze.ysize=100;
+			}
+
+			Maze.base_styles.penrose_sun = function(iterations,ignored,all_points,all_walls) {
+				penrose_maze('sun', iterations, all_points, all_walls, this);
+			}
+
+			Maze.base_styles.penrose_star = function(iterations,ignored,all_points,all_walls) {
+				penrose_maze('star', iterations, all_points, all_walls, this);
+			}
+
 			Maze.base_styles_info = {
 				'square': {
 					'min_xsize': 2,
@@ -1778,6 +2005,22 @@
 					'y_multiplier': 1,
 					'max_face_size': 20,
 					'algo': Maze.base_styles.round
+				},
+				'penrose-sun': {
+					'min_xsize': 2,
+					'min_ysize': 2,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 4,
+					'algo': Maze.base_styles.penrose_sun
+				},
+				'penrose-star': {
+					'min_xsize': 2,
+					'min_ysize': 2,
+					'x_multiplier': 1,
+					'y_multiplier': 1,
+					'max_face_size': 4,
+					'algo': Maze.base_styles.penrose_star
 				}
 			};
 
