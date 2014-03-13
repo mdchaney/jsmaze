@@ -555,12 +555,17 @@
 				return ret_cells;
 			}
 
-			// Takes an array of triangles and returns a new array
-			// of triangles representing one iteration of subdivision.
-			function iterate(triangles) {
-				var ret = [];
-				for (var i=0 ; i<triangles.length ; i++) {
-					ret = ret.concat(triangles[i].subdivide());
+			// Takes an array of triangles and iteration count and
+			// returns a new array of triangles after iterating
+			function penrose_iteration(triangles, iterations) {
+				var start = triangles, ret = [];
+				if (!iterations || iterations<1) iterations=1;
+				for (var j=0 ; j<iterations ; j++) {
+					ret = [];
+					for (var i=0 ; i<start.length ; i++) {
+						ret = ret.concat(start[i].subdivide());
+					}
+					start = ret;
 				}
 				return ret;
 			}
@@ -760,11 +765,9 @@
 			function restart() {
 				var pattern_selector = document.getElementById('pattern-selector');
 				var pattern_name = pattern_selector.value;
-				iterations = 2;
+				iterations = 1;
 				triangles = make_initial_pattern(pattern_name);
-				for (var i=0 ; i<iterations-1 ; i++) {
-					triangles = iterate(triangles);
-				}
+				triangles = penrose_iteration(triangles, iterations);
 				make_a_penrose();
 			}
 
@@ -772,13 +775,13 @@
 			function make_a_penrose() {
 				destroy_svg_element("svg-container");
 				var svg = create_svg_element("svg-container");
-				var cells = triangles_to_cells(triangles);
-				draw_cells(cells, svg);
-				//draw_triangles(triangles, svg);
+				//var cells = triangles_to_cells(triangles);
+				//draw_cells(cells, svg);
+				draw_triangles(triangles, svg);
 			}
 
 			function perform_iteration() {
-				triangles = iterate(triangles);
+				triangles = penrose_iteration(triangles, 1);
 				make_a_penrose();
 			}
 
