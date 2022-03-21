@@ -19,6 +19,8 @@
 		<script type="text/javascript">
 			// <![CDATA[
 
+			var set_0_state=0;
+
 			// Get query parameters from the url.  This returns an object like this:
 			//	?param            => args['param']=true
 			// ?param=value      => args['param']=value
@@ -256,6 +258,8 @@
 				// point 1", "up" is "point 1 to point 0".
 				this.traversed_down=false;
 				this.traversed_up=false;
+				// Used to keep track of both "sides"
+				this.set=null;
 			}
 
 			Wall.prototype = {
@@ -507,6 +511,8 @@
 				// rendering.
 				this.find_max_depth();
 				this.end_depth = this.end_cell().depth;
+				// Split the walls into two sets
+				this.set_wall_sets();
 			}
 
 			Maze.base_styles = {};
@@ -2115,6 +2121,24 @@
 				this.end_wall.open();
 			}
 
+			// Sets the "set" for the walls on each side of the
+			// entrance/exit
+			Maze.prototype.set_wall_sets = function() {
+				find_wall_set(this.start_wall.points[0],null,0);
+				find_wall_set(this.start_wall.points[1],null,1);
+
+				function find_wall_set(starting_point, orig_wall, set) {
+					for (var k=0; k<starting_point.walls.length; k++) {
+						var wall = starting_point.walls[k];
+						if (wall != orig_wall && !wall.is_open()) {
+							wall.set = set;
+							var other_end = wall.other_end(starting_point);
+							find_wall_set(other_end, wall, set);
+						}
+					}
+				}
+			}
+
 			//////////////////////////////////////////////////////////////
 			//                                                          //
 			//       Everything from here down pertains to display      //
@@ -2253,14 +2277,15 @@
 					l.setAttribute("y1", wall.points[0].y * ymult + ymult);
 					l.setAttribute("x2", wall.points[1].x * xmult + xmult);
 					l.setAttribute("y2", wall.points[1].y * ymult + ymult);
+					var set_class = "set-" + wall.set;
 					if (wall.is_open()) {
 						l.setAttribute("stroke", "#ff0008");
 						l.setAttribute("stroke-width", "1");
-						l.setAttribute("class", "open wall");
+						l.setAttribute("class", "open wall " + set_class);
 					} else {
 						l.setAttribute("stroke", "#ff0008");
 						l.setAttribute("stroke-width", "1");
-						l.setAttribute("class", "closed wall");
+						l.setAttribute("class", "closed wall " + set_class);
 					}
 					svg.appendChild(l);
 				}
@@ -2377,6 +2402,7 @@
 			// .wall - All wall segments
 			// .open - Open (invisible) wall segments
 			// .closed - Closed (visible) wall segments
+			// .set-0, .set-1 - Set that wall is part of
 			// #solution - The path that shows the maze solution
 			// .cell-center - Dots that mark the center of each cell
 			// #end-point, #start-point - Dots that mark the official start
@@ -2464,6 +2490,34 @@
 				}
 			}
 
+			function toggle_set_0() {
+				// set_0_state is one of:
+				// 0 - normal, walls are red
+				// 1 - set 0 is green, set 1 is red
+				// 2 - set 0 is red, set 1 is green
+				// 3 - set 0 is invisible
+				// 4 - set 1 is invisible
+
+				set_0_state = set_0_state + 1;
+				if (set_0_state > 4) set_0_state = 0;
+
+				if (set_0_state == 0) {
+					document.querySelectorAll('.set-0, .set-1').forEach(function(wall) { wall.setAttribute('stroke','#f00'); });
+				} else if (set_0_state == 1) {
+					document.querySelectorAll('.set-0').forEach(function(wall) { wall.setAttribute('stroke','#0f0'); });
+					document.querySelectorAll('.set-1').forEach(function(wall) { wall.setAttribute('stroke','#f00'); });
+				} else if (set_0_state == 2) {
+					document.querySelectorAll('.set-0').forEach(function(wall) { wall.setAttribute('stroke','#f00'); });
+					document.querySelectorAll('.set-1').forEach(function(wall) { wall.setAttribute('stroke','#0f0'); });
+				} else if (set_0_state == 3) {
+					document.querySelectorAll('.set-0').forEach(function(wall) { wall.setAttribute('stroke','transparent'); });
+					document.querySelectorAll('.set-1').forEach(function(wall) { wall.setAttribute('stroke','#f00'); });
+				} else if (set_0_state == 4) {
+					document.querySelectorAll('.set-0').forEach(function(wall) { wall.setAttribute('stroke','#f00'); });
+					document.querySelectorAll('.set-1').forEach(function(wall) { wall.setAttribute('stroke','transparent'); });
+				}
+			}
+
 			add_body_onload(set_up_form);
 			add_body_onload(make_a_maze);
 
@@ -2487,6 +2541,8 @@
 
 				<input type="checkbox" id="show-solution-input" value="1" onclick="toggle_solution();" />
 				Show Solution
+				|
+				<input type="button" value="Wall Sets" id="set-0-button" onclick="toggle_set_0();" />
 			</div>
 
 			<br clear="left" />
