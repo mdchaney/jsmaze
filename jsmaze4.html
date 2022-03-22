@@ -2183,31 +2183,13 @@
 				var triangles = make_penrose_pattern(style);
 				triangles = penrose_iteration(triangles, iterations);
 				triangles_to_points_and_walls(triangles, all_points, all_walls);
-				// Make start and end - set to next to greatest x and next
-				// to least x
-				var biggest=null, second_biggest=null;
-				var smallest=null, second_smallest=null;
-				for (var x=0 ; x<all_points.length ; x++) {
-					var point = all_points[x];
-					if (!biggest) {
-						biggest = point;
-					} else {
-						if (point.x > biggest.x) {
-							second_biggest = biggest;
-							biggest = point;
-						}
-					}
-					if (!smallest) {
-						smallest = point;
-					} else {
-						if (point.x < smallest.x) {
-							second_smallest = smallest;
-							smallest = point;
-						}
-					}
-				}
-				maze.start_point = second_smallest;
-				maze.end_point = second_biggest;
+				// Make start and end - set to greatest x and least x, but only
+				// points that have more than one wall attached.
+				points_with_multiple_walls = all_points.filter(p => p.walls.length > 1);
+				points_with_multiple_walls.sort((a,b) => a.x-b.x)
+
+				maze.start_point = points_with_multiple_walls[0];
+				maze.end_point = points_with_multiple_walls[points_with_multiple_walls.length-1];
 
 				// scale and translate
 				for (var x=0 ; x<all_points.length ; x++) {
