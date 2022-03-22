@@ -283,7 +283,6 @@
 			svg.plain { background: white; }
 			svg.plain line.wall { stroke: black; }
 			svg.plain polygon.depth-map { fill: white; stroke: white; }
-			svg.plain .solution { stroke: red; }
 
 			svg.show-sets-1 line.set-0 { stroke: #f00; }
 			svg.show-sets-1 line.set-1 { stroke: #0f0; }
@@ -301,8 +300,8 @@
 			svg.no-depth rect#bg { fill: blue; }
 			svg.plain rect#bg { fill: white; background: white; }
 
-			svg polyline#solution { fill: none; stroke-width: 1; }
-			svg polyline#solution { stroke: #f00; }
+			svg polyline#solution { fill: none; stroke-width: 2; }
+			svg polyline#solution { stroke: #ff0; }
 
 			svg.plain polyline#solution { stroke: #f0f; }
 
@@ -311,8 +310,6 @@
 		</style>
 		<script type="text/javascript">
 			// <![CDATA[
-
-			var set_0_state=0;
 
 			// Get query parameters from the url.  This returns an object like this:
 			//	?param            => args['param']=true
@@ -2457,8 +2454,6 @@
 				svg.setAttribute("height", "100%");
 				//svg.setAttribute("viewBox", "-1.02 -1.02 2.04 2.04");
 				var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
-				var stylesheet = document.createTextNode("line.wall.open { display: none; }");
-				style.appendChild(stylesheet);
 				svg.appendChild(style);
 				container_div.appendChild(svg);
 				return svg;
@@ -2695,10 +2690,16 @@
 			var maze_style = args['style'];
 			var maze_algorithm = args['algo'];
 			var show_solution = args['solution'];
+			var plain = args['plain'];
+			var show_depth = args['depth'];
+			var set_0_state=0;
 			if (!xsize) xsize=10;
 			if (!ysize) ysize=10;
 			if (!maze_style) maze_style='square';
 			if (!maze_algorithm) maze_algorithm='recursive';
+
+			var maze_style_selector, maze_algorithm_selector, x_size_input;
+			var y_size_input, show_solution_input, plain_input, show_depth_input;
 
 			// Actually makes the maze
 			function make_a_maze() {
@@ -2713,10 +2714,19 @@
 				show_maze_solution(maze, maze.xsize, maze.ysize, svg);
 				//show_cell_centers(maze.cells, maze.xsize, maze.ysize, svg);
 				//show_start_and_end_points(maze, maze.xsize, maze.ysize, svg);
+				set_svg_classes();
 			}
 
 			function set_up_form() {
-				var maze_style_selector = document.getElementById('maze-style-selector');
+				// find inputs
+				maze_style_selector = document.getElementById('maze-style-selector');
+				maze_algorithm_selector = document.getElementById('maze-algorithm-selector');
+				x_size_input = document.getElementById('x-size-input');
+				y_size_input = document.getElementById('y-size-input');
+				show_solution_input = document.getElementById('show-solution-input');
+				plain_input = document.getElementById('plain-input');
+				show_depth_input = document.getElementById('show-depth-input');
+
 				for (var key in Maze.base_styles_info) {
 					var opt = document.createElement('option');
 					opt.setAttribute('value',key);
@@ -2724,7 +2734,6 @@
 					maze_style_selector.appendChild(opt);
 				}
 
-				var maze_algorithm_selector = document.getElementById('maze-algorithm-selector');
 				for (var key in Maze.maze_styles_info) {
 					var opt = document.createElement('option');
 					opt.setAttribute('value',key);
@@ -2733,46 +2742,45 @@
 				}
 
 				// Now set the defaults
-				var x_size_input = document.getElementById('x-size-input');
-				var y_size_input = document.getElementById('y-size-input');
-				var show_solution_input = document.getElementById('show-solution-input');
 				x_size_input.value = xsize;
 				y_size_input.value = ysize;
-				show_solution_input.checked = show_solution;
 				maze_style_selector.value = maze_style;
 				maze_algorithm_selector.value = maze_algorithm;
+				show_solution_input.checked = show_solution;
+				plain_input.checked = plain;
+				show_depth_input.checked = show_depth;
 			}
 
 			function new_maze() {
-				var maze_style_selector = document.getElementById('maze-style-selector');
-				var maze_algorithm_selector = document.getElementById('maze-algorithm-selector');
-				var x_size_input = document.getElementById('x-size-input');
-				var y_size_input = document.getElementById('y-size-input');
-				var show_solution_input = document.getElementById('show-solution-input');
 				xsize = parseInt(x_size_input.value);
 				ysize = parseInt(y_size_input.value);
 				maze_style = maze_style_selector.value;
 				maze_algorithm = maze_algorithm_selector.value;
 				show_solution = show_solution_input.checked;
+				plain = plain_input.checked;
+				show_depth = show_depth_input.checked;
 
 				make_a_maze();
 			}
 
-			function toggle_solution() {
-				var show_solution_input = document.getElementById('show-solution-input');
+			function set_svg_classes() {
 				var svg = document.querySelector('div#svg-container svg');
-				show_solution = show_solution_input.checked;
 				if (show_solution) {
 					svg.classList.add('show-solution');
 				} else {
 					svg.classList.remove('show-solution');
 				}
-			}
-
-			function toggle_depth() {
-				var show_depth_input = document.getElementById('show-depth-input');
-				var svg = document.querySelector('div#svg-container svg');
-				show_depth = show_depth_input.checked;
+				if (plain) {
+					svg.classList.add('plain');
+					show_depth_input.disabled = true;
+					if (show_depth) {
+						show_depth_input.checked = false;
+						show_depth = false;
+					}
+				} else {
+					svg.classList.remove('plain');
+					show_depth_input.disabled = false;
+				}
 				if (show_depth) {
 					svg.classList.remove('no-depth');
 				} else {
@@ -2780,15 +2788,19 @@
 				}
 			}
 
+			function toggle_solution() {
+				show_solution = show_solution_input.checked;
+				set_svg_classes();
+			}
+
 			function toggle_plain() {
-				var plain_input = document.getElementById('plain-input');
-				var svg = document.querySelector('div#svg-container svg');
 				plain = plain_input.checked;
-				if (plain) {
-					svg.classList.add('plain');
-				} else {
-					svg.classList.remove('plain');
-				}
+				set_svg_classes();
+			}
+
+			function toggle_depth() {
+				show_depth = show_depth_input.checked;
+				set_svg_classes();
 			}
 
 			function toggle_set_0() {
