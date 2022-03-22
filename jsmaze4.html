@@ -278,7 +278,7 @@
 			svg polygon.depth-map.depth-255 { fill: #0000ff; stroke: #0000ff; }
 
 			svg line.wall { stroke: white; stroke-width: 1; }
-			svg line.wall.open { display: none; }
+			svg line.wall.open { opacity: 0.0; }
 
 			svg.plain { background: white; }
 			svg.plain line.wall { stroke: black; }
@@ -295,6 +295,8 @@
 
 			svg.show-sets-4 line.set-0 { opacity: 0.0; }
 			svg.show-sets-4 line.set-1 { stroke: #000; }
+
+			svg.show-sets-5 line.wall.open { opacity: 1.0; }
 
 			svg.no-depth polygon.depth-map { opacity: 0.0; }
 			svg.no-depth rect#bg { fill: blue; }
@@ -2792,13 +2794,14 @@
 				// 2 - set 0 is red, set 1 is green
 				// 3 - set 0 is invisible
 				// 4 - set 1 is invisible
+				// 5 - all walls visible, including open
 
 				set_0_state = set_0_state + 1;
-				if (set_0_state > 4) set_0_state = 0;
+				if (set_0_state > 5) set_0_state = 0;
 
 				var svg = document.querySelector('div#svg-container svg');
 
-				for (var k=0; k<=4; k++) {
+				for (var k=0; k<=5; k++) {
 					if (set_0_state == k) {
 						svg.classList.add("show-sets-" + k);
 					} else {
