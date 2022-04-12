@@ -1,0 +1,269 @@
+<?xml-stylesheet href="#maze-style" type="text/css"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<head>
+		<title>Maze</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<style type="text/css" id="maze-style">
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			div#wrap { width: 90vw; padding: 10px; margin: auto auto; background: black; }
+			table.maze { width: 100%; height: 100%; border: none;}
+			table.maze td { border-width: 0px; border-style: solid; border-color: red; }
+			table.maze td { padding: 0; font-size: 1px; height: 10px; }
+			table.maze td.b0000 { border: none; }
+			table.maze td.b0001 { border-top-width: 1px; }
+			table.maze td.b0010 { border-right-width: 1px; }
+			table.maze td.b0011 { border-top-width: 1px; border-right-width: 1px; }
+			table.maze td.b0100 { border-bottom-width: 1px; }
+			table.maze td.b0101 { border-top-width: 1px; border-bottom-width: 1px; }
+			table.maze td.b0110 { border-right-width: 1px; border-bottom-width: 1px; }
+			table.maze td.b0111 { border-top-width: 1px; border-right-width: 1px; border-bottom-width: 1px; }
+			table.maze td.b1000 { border-left-width: 1px; }
+			table.maze td.b1001 { border-top-width: 1px; border-left-width: 1px; }
+			table.maze td.b1010 { border-right-width: 1px; border-left-width: 1px; }
+			table.maze td.b1011 { border-top-width: 1px; border-right-width: 1px; border-left-width: 1px; }
+			table.maze td.b1100 { border-bottom-width: 1px; border-left-width: 1px; }
+			table.maze td.b1101 { border-top-width: 1px; border-bottom-width: 1px; border-left-width: 1px; }
+			table.maze td.b1110 { border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; }
+			table.maze td.b1111 { border-top-width: 1px; border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; }
+		</style>
+		<script type="text/javascript">
+			// <![CDATA[
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.indexOf('[]')==pname.length-2) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			var args=get_args();
+
+			// Basically, this array "converts" any number 0-15 to its
+			// binary equivalent as a string, which is useful for the use
+			// with the above stylesheet.
+			var to_bin=['0000', '0001', '0010', '0011', '0100', '0101', '0110', '0111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111'];
+
+			// Dir:     0 1 2 3
+			//          N E S W
+			var deltax=[0,1,0,-1];
+			var deltay=[-1,0,1,0];
+
+			var reverse_dirs=[2,3,0,1];
+
+			// walls are horizontal or vertical
+			var wall_offsets={
+				h: { x: [0,0,0,0], y: [0,0,1,0] },
+				v: { x: [0,1,0,0], y: [0,0,0,0] }
+			};
+			var wall_types=['h','v','h','v'];
+
+			// perms array has these indices:
+			//   1. direction of entering square
+			//   2. a perm #
+			//   3. a direction #
+			//   4. sequence #
+			//
+			//   Note that the perm# is broken down as follows:
+			//      0 - go straight first
+			//      1 - go straight second
+			//      2 - go straight last
+			//
+			//   Direction # is:
+			//      0 - left first
+			//      1 - right first
+			//
+			//   Therefore:
+			//
+			//   	  0,0 - straight,right,left
+			//   	  0,1 - straight,left,right
+			//   	  1,0 - right,straight,left
+			//   	  1,1 - left,straight,right
+			//   	  2,0 - right,left,straight
+			//   	  2,1 - left,right,straight
+
+			var perms = [[[[0,1,3],[0,3,1]],[[1,0,3],[3,0,1]],[[1,3,0],[3,1,0]]],
+                      [[[1,2,0],[1,0,2]],[[2,1,0],[0,1,2]],[[2,0,1],[0,2,1]]],
+                      [[[2,3,1],[2,1,3]],[[3,2,1],[1,2,3]],[[3,1,2],[1,3,2]]],
+                      [[[3,0,2],[3,2,0]],[[0,3,2],[2,3,0]],[[0,2,3],[2,0,3]]]];
+
+			var xsize=parseInt(args['xsize']);
+			var ysize=parseInt(args['ysize']);
+			if (!xsize) xsize=10;
+			if (!ysize) ysize=10;
+
+			// For each cell, we need to keep state.  Walls are booleans,
+			// and consist of horizontal walls and vertical walls.  We can
+			// determine which walls belong to a cell using wall_offsets
+			// and wall_types.
+
+			// For each cell position we'll keep the following information:
+			// 1. entry direction
+			// 2. permutation
+			// 3. current sequence
+			// 4. depth
+
+			// Only depth needs to be kept in an array for later use
+
+			var depths = new Array(xsize);
+			for (var x=0 ; x<xsize ; x++) {
+				depths[x] = new Array(ysize);
+			}
+
+			var walls = { h: new Array(xsize), v: new Array(xsize+1) }
+
+			// Create the horizontal walls, all set to "true"
+			for (var x=0 ; x<xsize ; x++) {
+				walls['h'][x] = new Array(ysize+1);
+				for (var y=0 ; y<ysize+1 ; y++) {
+					walls['h'][x][y] = true;
+				}
+			}
+
+			// Create the vertical walls, all set to "true"
+			for (var x=0 ; x<xsize+1 ; x++) {
+				walls['v'][x] = new Array(ysize);
+				for (var y=0 ; y<ysize ; y++) {
+					walls['v'][x][y] = true;
+				}
+			}
+
+			var startx=0;
+			var starty=ysize-1;
+
+			var maxdepth=0;
+
+			// If performed recursively, this algorithm is simple...
+			function make_maze(x,y,depth,dir) {
+
+				// remove the wall where we entered
+				remove_wall(x,y,reverse_dirs[dir]);
+
+				// update max depth
+				if (depth>maxdepth) maxdepth=depth;
+				depths[x][y]=depth;
+
+				var i,j,k,new_dir;
+				var lr=(Math.random()>=.5 ? 0 : 1);
+				var straightness=Math.floor(Math.random()*3);
+				// Use something like this to make a straighter maze, or
+				// remove the "2-" to make a really curvy maze.
+				//var straightness=2-Math.floor(Math.log(Math.random()*19+1));
+				for (new_dir of perms[dir][straightness][lr]) {
+					i=x+deltax[new_dir];
+					j=y+deltay[new_dir];
+					if (in_bounds(i,j) && unvisited(i,j)) {
+						make_maze(i,j,depth+1,new_dir);
+					}
+				}
+			}
+
+			make_maze(startx,starty,0,0);
+
+			// open walls for start/end
+			walls['h'][xsize-1][0] = false;
+
+			function in_bounds(x,y) {
+				return (x>=0 && x<xsize && y>=0 && y<ysize);
+			}
+
+			function four_walls(x,y) {
+				var ret = new Array(4);
+				for (var dir=0; dir<4; dir++) {
+					ret[dir] = get_wall(x,y,dir);
+				}
+				return ret;
+			}
+
+			function four_walls_as_integer(x,y) {
+				var ret = 0;
+				var fw_arr = four_walls(x,y);
+				for (var dir=0; dir<4; dir++) {
+					if (fw_arr[dir]) ret |= 1<<dir;
+				}
+				return ret;
+			}
+
+			function unvisited(x,y) {
+				return four_walls(x,y).every(t => t);
+			}
+
+			function get_wall(x,y,dir) {
+				wall_type = wall_types[dir];
+				return walls[wall_type][x+wall_offsets[wall_type]['x'][dir]][y+wall_offsets[wall_type]['y'][dir]];
+			}
+
+			function set_wall(x,y,dir,val) {
+				wall_type = wall_types[dir];
+				walls[wall_type][x+wall_offsets[wall_type]['x'][dir]][y+wall_offsets[wall_type]['y'][dir]] = val;
+			}
+
+			function remove_wall(x,y,dir) {
+				set_wall(x,y,dir,false);
+			}
+
+			//]]>
+		</script>
+	</head>
+
+	<body>
+
+		<h1>JavaScript Maze</h1>
+
+		<div id="wrap">
+			<table class="maze" cellspacing="0">
+			<script type="text/javascript">
+				// <![CDATA[
+				for (var y=0 ; y<ysize ; y++) {
+					document.write('<tr>');
+					for (var x=0 ; x<xsize ; x++) {
+						document.write('<td style="background: rgb(0,0,' + (255-Math.floor((depths[x][y]/maxdepth)*255)) + ');" class="b' + to_bin[four_walls_as_integer(x,y)] + '">&nbsp;</td>');
+						// document.write('<td class="b' + to_bin[maze[x][y].walls] + '">&nbsp;</td>');
+					}
+					document.write('</tr>');
+				}
+				//]]>
+			</script>
+			</table>
+		</div>
+
+		<p><a href="http://validator.w3.org/check?uri=referer"><img src="http://www.w3.org/Icons/valid-xhtml10" alt="Valid XHTML 1.0 Transitional" height="31" width="88" /></a></p>
+
+	</body>
+
+</html>
