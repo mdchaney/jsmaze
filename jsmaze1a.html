@@ -131,6 +131,34 @@
 			if (!xsize) xsize=10;
 			if (!ysize) ysize=10;
 
+			var right_preference=args['r'];
+
+			if (right_preference) {
+				right_preference = parseFloat(right_preference);
+			} else {
+				right_preference = 0.5;
+			}
+
+			if (right_preference<0.0) {
+				right_preference=0.0;
+			} else if (right_preference>1.0) {
+				right_preference=1.0;
+			}
+
+			var straight_preference=args['s'];
+
+			if (straight_preference) {
+				straight_preference = parseFloat(straight_preference);
+			} else {
+				straight_preference = 0.0;
+			}
+
+			if (straight_preference<-1.0) {
+				straight_preference=-1.0;
+			} else if (straight_preference>1.0) {
+				straight_preference=1.0;
+			}
+
 			// For each cell, we need to keep state.  Walls are booleans,
 			// and consist of horizontal walls and vertical walls.  We can
 			// determine which walls belong to a cell using wall_offsets
@@ -182,12 +210,24 @@
 				if (depth>maxdepth) maxdepth=depth;
 				depths[x][y]=depth;
 
-				var i,j,k,new_dir;
-				var lr=(Math.random()>=.5 ? 0 : 1);
-				var straightness=Math.floor(Math.random()*3);
-				// Use something like this to make a straighter maze, or
-				// remove the "2-" to make a really curvy maze.
-				//var straightness=2-Math.floor(Math.log(Math.random()*19+1));
+				var i,j,k,new_dir,straightness;
+
+				var lr=(Math.random()>=right_preference ? 0 : 1);
+
+				// straightness is a number from 0 to 2, with "0" being
+				// straight first, "1" straight second, and "2" straight
+				// last.  straight_preference is between -1 and 1, with
+				// -1 being very straight, 0 being neutral, and 1 being
+				// very curvy.  We'll use the beta function to come up
+				// with some numbers for this.
+				if (straight_preference < 0.0) {
+					straightness=get_straightness(-straight_preference);
+				} else if (straight_preference > 0.0) {
+					straightness=2-get_straightness(straight_preference);
+				} else {
+					straightness=Math.floor(Math.random()*2.999999);
+				}
+
 				for (new_dir of perms[dir][straightness][lr]) {
 					i=x+deltax[new_dir];
 					j=y+deltay[new_dir];
@@ -241,6 +281,41 @@
 				set_wall(x,y,dir,false);
 			}
 
+			// seed is 0 -> 1.  At 0, we have a regular distribution and at 1
+			// we have a distribution completely weighted toward 0.  Simply, at
+			// 0 the cutoffs are at 1/3 and 2/3, since 2/3 is half way between
+			// 1/3 and 1.  At .5, the first cutoff is 2/3 and the second is
+			// 11/12.
+			// cutoff2 is .5 of remaining space when seed is 0 and 0 of
+			// remaining space when seed is 1.
+			function get_straightness(seed) {
+				var cutoff1 = .333333333 + seed*.666666666
+				var rnd = Math.random();
+				if (rnd<cutoff1) {
+					return 0;
+				} else {
+					var cutoff2 = 1.0 - (1.0 - cutoff1) * (.5-seed*.5);
+					if (rnd<cutoff2) {
+						return 1;
+					} else {
+						return 2;
+					}
+				}
+			}
+
+			function test_get_straightness() {
+				var counts = new Array(11);
+				for (var seed=0; seed<=10; seed++) {
+					these_counts = [0,0,0];
+					for (var x=0; x<50000; x++) {
+						var straightness = get_straightness(seed/10.0);
+						these_counts[straightness] += 1;
+					}
+					counts[Math.floor(seed)] = these_counts;
+				}
+
+				console.log(counts);
+			}
 			//]]>
 		</script>
 	</head>
