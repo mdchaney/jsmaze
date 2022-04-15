@@ -188,52 +188,48 @@
 
 			var maxdepth=0;
 
-			function* make_maze_gen(startx, starty, startdir) {
-				yield* make_maze(startx, starty, 0, startdir);
+			function* make_maze(x,y,depth,dir) {
 
-				function* make_maze(x,y,depth,dir) {
+				yield { action: 'move', x: x, y: y, dir: dir };
 
-					yield { action: 'move', x: x, y: y, dir: dir };
+				// remove the wall where we entered
+				remove_wall(x,y,reverse_dirs[dir]);
 
-					// remove the wall where we entered
-					remove_wall(x,y,reverse_dirs[dir]);
+				// record backtracking
+				backtracks[x][y] = reverse_dirs[dir];
 
-					// record backtracking
-					backtracks[x][y] = reverse_dirs[dir];
+				// update max depth
+				if (depth>maxdepth) maxdepth=depth;
+				depths[x][y]=depth;
 
-					// update max depth
-					if (depth>maxdepth) maxdepth=depth;
-					depths[x][y]=depth;
+				var i,j,k,new_dir,straightness;
 
-					var i,j,k,new_dir,straightness;
+				var lr=(Math.random()>=right_preference ? 0 : 1);
 
-					var lr=(Math.random()>=right_preference ? 0 : 1);
+				// straightness is a number from 0 to 2, with "0" being
+				// straight first, "1" straight second, and "2" straight
+				// last.  straight_preference is between -1 and 1, with
+				// -1 being very straight, 0 being neutral, and 1 being
+				// very curvy.  We'll use the beta function to come up
+				// with some numbers for this.
+				if (straight_preference < 0.0) {
+					straightness=get_straightness(-straight_preference);
+				} else if (straight_preference > 0.0) {
+					straightness=2-get_straightness(straight_preference);
+				} else {
+					straightness=Math.floor(Math.random()*2.999999);
+				}
 
-					// straightness is a number from 0 to 2, with "0" being
-					// straight first, "1" straight second, and "2" straight
-					// last.  straight_preference is between -1 and 1, with
-					// -1 being very straight, 0 being neutral, and 1 being
-					// very curvy.  We'll use the beta function to come up
-					// with some numbers for this.
-					if (straight_preference < 0.0) {
-						straightness=get_straightness(-straight_preference);
-					} else if (straight_preference > 0.0) {
-						straightness=2-get_straightness(straight_preference);
-					} else {
-						straightness=Math.floor(Math.random()*2.999999);
-					}
-
-					for (new_dir of perms[dir][straightness][lr]) {
-						i=x+deltax[new_dir];
-						j=y+deltay[new_dir];
-						// it should always be in bounds, this is a sanity check
-						if (in_bounds(i,j)) {
-							if (unvisited(i,j)) {
-								yield* make_maze(i,j,depth+1,new_dir);
-								yield { action: 'backtrack', x: x, y: y };
-							} else {
-								yield { action: 'try', x: i, y: j };
-							}
+				for (new_dir of perms[dir][straightness][lr]) {
+					i=x+deltax[new_dir];
+					j=y+deltay[new_dir];
+					// it should always be in bounds, this is a sanity check
+					if (in_bounds(i,j)) {
+						if (unvisited(i,j)) {
+							yield* make_maze(i,j,depth+1,new_dir);
+							yield { action: 'backtrack', x: x, y: y };
+						} else {
+							yield { action: 'try', x: i, y: j };
 						}
 					}
 				}
@@ -354,6 +350,39 @@
 				}
 			}
 
+			function clear_walls() {
+				// Create the horizontal walls, all set to "true" except
+				// first and last
+				walls = { 'h': false, 'v': false };
+				walls['h'] = new Array(ysize+1);
+				for (var x=0 ; x<xsize ; x++) {
+					walls['h'][x] = new Array(ysize+1).fill(false);
+				}
+
+				// Create the vertical walls, all set to "true" except first
+				walls['v'] = new Array(xsize+1);
+				// and last
+				for (var x=0 ; x<xsize+1 ; x++) {
+					walls['v'][x] = new Array(ysize).fill(false);
+				}
+			}
+
+			function set_initial_walls() {
+				// horizontal walls
+				for (var x=1 ; x<xsize-1 ; x++) {
+					for (var y=1 ; y<ysize ; y++) {
+						walls['h'][x][y] = true;
+					}
+				}
+
+				// vertical walls
+				for (var x=1 ; x<xsize ; x++) {
+					for (var y=1 ; y<ysize-1 ; y++) {
+						walls['v'][x][y] = true;
+					}
+				}
+			}
+
 			function init() {
 				maxdepth=0;
 
@@ -365,42 +394,33 @@
 					backtracks[x] = new Array(ysize);
 				}
 
-				// Create the horizontal walls, all set to "true" except
-				// first and last
-				for (var x=0 ; x<xsize ; x++) {
-					walls['h'][x] = new Array(ysize+1);
-					for (var y=0 ; y<ysize+1 ; y++) {
-						walls['h'][x][y] = (x!=0 && x!=xsize-1 && y!=0 && y!=ysize);
-					}
-				}
-
-				// Create the vertical walls, all set to "true" except first
-				// and last
-				for (var x=0 ; x<xsize+1 ; x++) {
-					walls['v'][x] = new Array(ysize);
-					for (var y=0 ; y<ysize ; y++) {
-						walls['v'][x][y] = (y!=0 && y!=ysize-1 && x!=0 && x!=xsize);
-					}
-				}
+				clear_walls();
+				set_initial_walls();
 
 				var table = document.getElementById('maze');
 				create_table_cells(table, xsize, ysize);
 
-				var maze_generator = make_maze_gen(startx,starty,2);
+				var last_x=null, last_y=null;
+				var last_try_x=null, last_try_y=null;
+
+				var completely_done = false;
+
+				var maze_generator = make_maze(startx,starty,0,2);
 
 				document.addEventListener('keydown', function(ev) {
 					var next_item = maze_generator.next();
-					if (next_item.donw) {
+					if (completely_done) {
+						alert("Done");
+					} else if (next_item.done) {
 						// open walls for start/end
-						walls['h'][xsize-2][ysize-1] = false;
+						//walls['h'][xsize-2][ysize-1] = false;
+						handle_action({action: 'open_end', x: xsize-2, y: ysize-2, dir: 2});
+						completely_done = true;
 					} else {
 						var action = next_item.value;
 						handle_action(action);
 					}
 				});
-
-				var last_x=null, last_y=null;
-				var last_try_x=null, last_try_y=null;
 
 				function handle_action(action) {
 					console.log(action);
@@ -417,10 +437,16 @@
 						case 'backtrack':
 							update_current(action.x, action.y);
 							break;
+						case 'open_end':
+							remove_try();
+							remove_current();
+							remove_outbound_wall(action.x, action.y, action.dir);
+							remove_inbound_wall(action.x+deltax[action.dir], action.y+deltay[action.dir], action.dir);
+							break;
 					}
 
 					function remove_outbound_wall(x,y,dir) {
-						if (x && y) {
+						if (x!==null && y!==null) {
 							var td = td_at(x,y);
 							td.classList.remove('wall_' + dir);
 						}
@@ -452,13 +478,18 @@
 						td.classList.add('testing');
 					}
 
-					function update_current(x,y) {
-						remove_try();
-
+					function remove_current() {
 						if (last_x!==null && last_y!==null) {
 							var last_td = td_at(last_x, last_y);
 							last_td.classList.remove('current');
+							last_x = null;
+							last_y = null;
 						}
+					}
+
+					function update_current(x,y) {
+						remove_try();
+						remove_current();
 
 						last_x=x;
 						last_y=y;
