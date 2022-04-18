@@ -17,12 +17,14 @@
 			table.maze td.wall_1 { border-right-style: solid; }
 			table.maze td.wall_2 { border-bottom-style: solid; }
 			table.maze td.wall_3 { border-left-style: solid; }
+			table.maze td.current_serial { background-color: #f8f; }
 			table.maze td.current { background-color: cyan; }
 			table.maze td.backtrack_0 { background-image: url(images/arrow-up.svg); }
 			table.maze td.backtrack_1 { background-image: url(images/arrow-right.svg); }
 			table.maze td.backtrack_2 { background-image: url(images/arrow-down.svg); }
 			table.maze td.backtrack_3 { background-image: url(images/arrow-left.svg); }
 			table.maze td.testing { background-image: url(images/question-lg.svg); }
+			table.maze td.prior_serials { background-color: #ff8; }
 		</style>
 		<script type="text/javascript">
 			// <![CDATA[
@@ -211,6 +213,7 @@
 						if (empty_found>next_start) break;
 					}
 					console.log("Pieces left: " + pieces_left + ", next start: " + next_start + ", starting: " + x + "," + y + ", serial: " + serial);
+					yield { action: 'new_segment', serial: serial };
 					yield* make_maze_helper(x,y,null,serial++,pieces_left);
 				}
 
@@ -470,6 +473,12 @@
 							remove_outbound_wall(last_x, last_y, action.dir);
 							remove_inbound_wall(action.x, action.y, action.dir);
 							break;
+						case 'new_segment':
+							clear_backtracks(action.serial-1);
+							set_prior_serial(action.serial-1);
+							remove_try();
+							remove_current();
+							break;
 						case 'try':
 							update_try(action.x, action.y);
 							break;
@@ -483,6 +492,8 @@
 						case 'open_end':
 							remove_try();
 							remove_current();
+							clear_backtracks();
+							set_prior_serial();
 							remove_outbound_wall(action.x, action.y, action.dir);
 							remove_inbound_wall(action.x+deltax[action.dir], action.y+deltay[action.dir], action.dir);
 							break;
@@ -499,9 +510,29 @@
 						remove_outbound_wall(x,y,reverse_dirs[dir]);
 					}
 
+					function set_prior_serial() {
+						// we'll add the class prior_serials and remove class
+						// current_serial
+						var tds = table.querySelectorAll('td.current_serial');
+						for (const td of Array.from(tds)) {
+							td.classList.remove('current_serial');
+							td.classList.add('prior_serials');
+						}
+					}
+
 					function set_backtrack(x,y,dir) {
 						var td = td_at(x,y);
 						td.classList.add('backtrack_' + reverse_dirs[dir]);
+					}
+
+					function clear_backtracks() {
+						var tds = table.querySelectorAll('td.backtrack_0,td.backtrack_1,td.backtrack_2,td.backtrack_3');
+						for (const td of Array.from(tds)) {
+							td.classList.remove('backtrack_0');
+							td.classList.remove('backtrack_1');
+							td.classList.remove('backtrack_2');
+							td.classList.remove('backtrack_3');
+						}
 					}
 
 					function remove_try() {
@@ -538,6 +569,7 @@
 						last_y=y;
 						var td = td_at(x,y);
 						td.classList.add('current');
+						td.classList.add('current_serial');
 					}
 				}
 			}
