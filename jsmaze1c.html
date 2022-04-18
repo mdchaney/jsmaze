@@ -408,17 +408,19 @@
 				var maze_generator = make_maze(startx,starty,0,2);
 
 				document.addEventListener('keydown', function(ev) {
-					var next_item = maze_generator.next();
-					if (completely_done) {
-						alert("Done");
-					} else if (next_item.done) {
-						// open walls for start/end
-						//walls['h'][xsize-2][ysize-1] = false;
-						handle_action({action: 'open_end', x: xsize-2, y: ysize-2, dir: 2});
-						completely_done = true;
-					} else {
-						var action = next_item.value;
-						handle_action(action);
+					if (ev.keyCode == 32) {
+						var next_item = maze_generator.next();
+						if (completely_done) {
+							alert("Done");
+						} else if (next_item.done) {
+							// open walls for start/end
+							//walls['h'][xsize-2][ysize-1] = false;
+							handle_action({action: 'open_end', x: xsize-2, y: ysize-2, dir: 2});
+							completely_done = true;
+						} else {
+							var action = next_item.value;
+							handle_action(action);
+						}
 					}
 				});
 

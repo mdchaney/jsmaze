@@ -436,19 +436,22 @@
 				var maze_generator = make_maze();
 
 				document.addEventListener('keydown', function(ev) {
-					var next_item = maze_generator.next();
-					if (completely_done) {
-						alert("Done");
-					} else if (next_item.done) {
-						// open walls for start/end
-						handle_action({action: 'open_start', x: 1, y: 0, dir: 2});
-						handle_action({action: 'open_end', x: xsize-2, y: ysize-2, dir: 2});
-						completely_done = true;
-					} else if (next_item.value===true || next_item.value===false) {
-						// ignore this
-					} else {
-						var action = next_item.value;
-						handle_action(action);
+					if (ev.keyCode == 32) {
+						var next_item = maze_generator.next();
+						if (completely_done) {
+							alert("Done");
+						} else if (next_item.done) {
+							// open walls for start/end
+							handle_action({action: 'open_start', x: 1, y: 0, dir: 2});
+							handle_action({action: 'open_end', x: xsize-2, y: ysize-2, dir: 2});
+							completely_done = true;
+						} else if (next_item.value===true || next_item.value===false) {
+							// ignore this
+							console.log("Ignoring " + next_item.value);
+						} else {
+							var action = next_item.value;
+							handle_action(action);
+						}
 					}
 				});
 
