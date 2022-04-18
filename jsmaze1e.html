@@ -1,0 +1,471 @@
+<?xml-stylesheet href="#maze-style" type="text/css"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+	<head>
+		<title>Maze</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<style type="text/css" id="maze-style">
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			div#wrap { width: 90vw; height: 90vh; padding: 10px; margin: auto auto; background: white; }
+			table.maze { width: 100%; height: 100%; border: none;}
+			table.maze td { border-width: 1px; border-style: none; border-color: black; }
+			table.maze td { padding: 0; font-size: 12px; min-height: 1em; min-width: 1em; background-repeat: no-repeat; background-position: center; background-origin: padding-box; background-clip: padding-box; background-size: 50%;}
+			table.maze tr:first-child td { border-top-width: 2px; }
+         table.maze tr td:first-child { border-left-width: 2px; }
+         table.maze tr:last-child td { border-bottom-width: 2px; }
+         table.maze tr td:last-child { border-right-width: 2px; }
+			table.maze td.wall_0 { border-top-style: solid; }
+			table.maze td.wall_1 { border-right-style: solid; }
+			table.maze td.wall_2 { border-bottom-style: solid; }
+			table.maze td.wall_3 { border-left-style: solid; }
+			table.maze td.in { background-color: white; }
+			table.maze td.out { background-color: blue; }
+			table.maze td.frontier { background-color: red; }
+			table.maze td.current { background-color: cyan; }
+		</style>
+		<script type="text/javascript">
+			// <![CDATA[
+
+			// This function will add an onload handler to the body.  It's fine to
+			// add a bunch of handlers, this keeps track of all of them.
+			function add_body_onload(func) {
+				var old_body_onload=window.onload;
+				window.onload=function() {
+				if (old_body_onload) { old_body_onload(); }
+					func();
+				}
+			}
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.match(/\[\]$/)) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			var args=get_args();
+
+			// Dir:     0 1 2 3
+			//          N E S W
+			var deltax=[0,1,0,-1];
+			var deltay=[-1,0,1,0];
+
+			var reverse_dirs=[2,3,0,1];
+
+			// walls are horizontal or vertical
+			var wall_offsets={
+				h: { x: [0,0,0,0], y: [0,0,1,0] },
+				v: { x: [0,1,0,0], y: [0,0,0,0] }
+			};
+			var wall_types=['h','v','h','v'];
+
+			// args
+			var xsize=parseInt(args['xsize']);
+			var ysize=parseInt(args['ysize']);
+			if (!xsize) xsize=10;
+			if (!ysize) ysize=10;
+
+			var walls = { h: new Array(xsize), v: new Array(xsize+1) }
+
+			var maxdepth=0;
+
+			function* make_maze() {
+
+				var frontier_cells = new Array;
+
+				var start_x = Math.floor(Math.random() * xsize);
+				var start_y = Math.floor(Math.random() * ysize);
+
+				frontier_cells = get_unvisited_neighbors(start_x, start_y);
+
+				yield { action: 'start', x: start_x, y: start_y, frontier_cells: frontier_cells };
+
+				while (frontier_cells.length > 0) {
+					var next_cell_num = Math.floor(Math.random() * frontier_cells.length);
+					var next_x = frontier_cells[next_cell_num][0];
+					var next_y = frontier_cells[next_cell_num][1];
+
+					// remove this item from frontier cells
+					frontier_cells.splice(next_cell_num,1);
+
+					// attach to a visited neighbor
+					var visited_neighbors = get_visited_neighbors(next_x,next_y);
+					var attach_to_num, attach_x, attach_y;
+					if (visited_neighbors.length>0) {
+						attach_to_num = Math.floor(Math.random()*visited_neighbors.length);
+						attach_x = visited_neighbors[attach_to_num][0];
+						attach_y = visited_neighbors[attach_to_num][1];
+					} else {
+						// this is the start
+						attach_x = start_x;
+						attach_y = start_y;
+					}
+					var dir = get_common_wall_dir(next_x, next_y, attach_x, attach_y);
+					remove_wall(next_x, next_y, dir);
+					yield { action: 'attach', x: next_x, y: next_y, dir: dir }
+
+					// add unvisited to frontier cells
+					var unvisited_neighbors = get_unvisited_neighbors(next_x,next_y);
+
+					var new_frontier_cells = unvisited_neighbors.filter(xy => !frontier_cells.some(is_equal_xy(xy)));
+
+					yield { action: 'new_frontier_cells', new_frontier_cells: new_frontier_cells }
+
+					frontier_cells.push(...new_frontier_cells);
+				}
+			}
+
+			// This returns a function to check an x/y pair for
+			// equality with another given x/y pair.  Useful for
+			// using with array functions.
+			function is_equal_xy(xy) {
+				return function(x1y1) {
+					return xy[0] == x1y1[0] && xy[1] == x1y1[1];
+				}
+			}
+
+			function in_bounds(x,y) {
+				return (x>=0 && x<xsize && y>=0 && y<ysize);
+			}
+
+			function four_walls(x,y) {
+				var ret = new Array(4);
+				for (var dir=0; dir<4; dir++) {
+					ret[dir] = get_wall(x,y,dir);
+				}
+				return ret;
+			}
+
+			function four_walls_as_integer(x,y) {
+				var ret = 0;
+				var fw_arr = four_walls(x,y);
+				for (var dir=0; dir<4; dir++) {
+					if (fw_arr[dir]) ret |= 1<<dir;
+				}
+				return ret;
+			}
+
+			function unvisited(x,y) {
+				return four_walls(x,y).every(t => t);
+			}
+
+			function visited(x,y) {
+				return !unvisited(x,y);
+			}
+
+			function get_visited_neighbors(x,y) {
+				var retval = [];
+				if (in_bounds(x-1,y) && visited(x-1,y)) {
+					retval.push([x-1,y]);
+				}
+				if (in_bounds(x+1,y) && visited(x+1,y)) {
+					retval.push([x+1,y]);
+				}
+				if (in_bounds(x,y-1) && visited(x,y-1)) {
+					retval.push([x,y-1]);
+				}
+				if (in_bounds(x,y+1) && visited(x,y+1)) {
+					retval.push([x,y+1]);
+				}
+				return retval;
+			}
+
+			function get_unvisited_neighbors(x,y) {
+				var retval = [];
+				if (in_bounds(x-1,y) && unvisited(x-1,y)) {
+					retval.push([x-1,y]);
+				}
+				if (in_bounds(x+1,y) && unvisited(x+1,y)) {
+					retval.push([x+1,y]);
+				}
+				if (in_bounds(x,y-1) && unvisited(x,y-1)) {
+					retval.push([x,y-1]);
+				}
+				if (in_bounds(x,y+1) && unvisited(x,y+1)) {
+					retval.push([x,y+1]);
+				}
+				return retval;
+			}
+
+			function get_wall(x,y,dir) {
+				wall_type = wall_types[dir];
+				return walls[wall_type][x+wall_offsets[wall_type]['x'][dir]][y+wall_offsets[wall_type]['y'][dir]];
+			}
+
+			function set_wall(x,y,dir,val) {
+				wall_type = wall_types[dir];
+				walls[wall_type][x+wall_offsets[wall_type]['x'][dir]][y+wall_offsets[wall_type]['y'][dir]] = val;
+			}
+
+			function remove_wall(x,y,dir) {
+				set_wall(x,y,dir,false);
+			}
+
+			// seed is 0 -> 1.  At 0, we have a regular distribution and at 1
+			// we have a distribution completely weighted toward 0.  Simply, at
+			// 0 the cutoffs are at 1/3 and 2/3, since 2/3 is half way between
+			// 1/3 and 1.  At .5, the first cutoff is 2/3 and the second is
+			// 11/12.
+			// cutoff2 is .5 of remaining space when seed is 0 and 0 of
+			// remaining space when seed is 1.
+			function get_straightness(seed) {
+				var cutoff1 = .333333333 + seed*.666666666
+				var rnd = Math.random();
+				if (rnd<cutoff1) {
+					return 0;
+				} else {
+					var cutoff2 = 1.0 - (1.0 - cutoff1) * (.5-seed*.5);
+					if (rnd<cutoff2) {
+						return 1;
+					} else {
+						return 2;
+					}
+				}
+			}
+
+			function test_get_straightness() {
+				var counts = new Array(11);
+				for (var seed=0; seed<=10; seed++) {
+					these_counts = [0,0,0];
+					for (var x=0; x<50000; x++) {
+						var straightness = get_straightness(seed/10.0);
+						these_counts[straightness] += 1;
+					}
+					counts[Math.floor(seed)] = these_counts;
+				}
+
+				console.log(counts);
+			}
+
+			function get_common_wall_dir(x1, y1, x2, y2) {
+				if (x1==x2) {
+					if (y2==y1-1) {
+						return 0;
+					} else if (y2==y1+1) {
+						return 2;
+					} else {
+						return null;
+					}
+				} else if (y1==y2) {
+					if (x2==x1-1) {
+						return 3;
+					} else if (x2==x1+1) {
+						return 1;
+					} else {
+						return null;
+					}
+				} else {
+					return null;
+				}
+			}
+
+			function create_table_cells(table, xsize, ysize) {
+				for (var y=0; y<ysize; y++) {
+					var tr = document.createElement('tr');
+					tr.id = 'row_' + y;
+					tr.className = 'row_' + y;
+					for (var x=0; x<xsize; x++) {
+						var td = document.createElement('td');
+						td.id = 'cell_' + x + '_' + y;
+						td.className = 'row_' + y + ' col_' + x;
+						for (var dir=0; dir<4; dir++) {
+							if (get_wall(x,y,dir)) {
+								td.classList.add('wall_' + dir);
+								td.classList.add('out');
+							}
+						}
+						tr.appendChild(td);
+					}
+					table.appendChild(tr);
+				}
+			}
+
+			function td_at(x,y) {
+				return document.getElementById('cell_' + x + '_' + y);
+			}
+
+			function clear_walls() {
+				// Create the horizontal walls
+				walls = { 'h': false, 'v': false };
+				walls['h'] = new Array(xsize+1);
+				for (var x=0 ; x<xsize ; x++) {
+					walls['h'][x] = new Array(ysize+1).fill(true);
+				}
+
+				// Create the vertical walls
+				walls['v'] = new Array(ysize+1);
+				for (var x=0 ; x<xsize+1 ; x++) {
+					walls['v'][x] = new Array(ysize).fill(true);
+				}
+			}
+
+			function set_initial_walls() {
+				// horizontal walls
+				for (var x=0 ; x<xsize ; x++) {
+					for (var y=0 ; y<ysize ; y++) {
+						walls['h'][x][y] = true;
+					}
+				}
+
+				// vertical walls
+				for (var x=1 ; x<xsize ; x++) {
+					for (var y=1 ; y<ysize-1 ; y++) {
+						walls['v'][x][y] = true;
+					}
+				}
+			}
+
+			function init() {
+				clear_walls();
+				//set_initial_walls();
+
+				var table = document.getElementById('maze');
+				create_table_cells(table, xsize, ysize);
+
+				var last_x=null, last_y=null;
+
+				var completely_done = false;
+
+				var maze_generator = make_maze();
+
+				document.addEventListener('keydown', function(ev) {
+					if (ev.keyCode == 32) {
+						var next_item = maze_generator.next();
+						if (completely_done) {
+							alert("Done");
+						} else if (next_item.done) {
+							// open walls for start/end
+							handle_action({action: 'open_start', x: 0, y: 0, dir: 0});
+							handle_action({action: 'open_end', x: xsize-1, y: ysize-1, dir: 2});
+							completely_done = true;
+						} else if (next_item.value===true || next_item.value===false) {
+							// ignore this
+							console.log("Ignoring " + next_item.value);
+						} else {
+							var action = next_item.value;
+							handle_action(action);
+						}
+					}
+				});
+
+				function handle_action(action) {
+					console.log(action);
+					switch(action.action) {
+						case 'start':
+							// x, y, frontier_cells
+							update_current(action.x, action.y);
+							add_frontier_cells(action.frontier_cells);
+							break;
+						case 'attach':
+							// x, y, dir
+							update_current(action.x, action.y);
+							remove_both_walls(action.x, action.y, action.dir);
+							break;
+						case 'new_frontier_cells':
+							// new_frontier_cells
+							remove_current();
+							add_frontier_cells(action.new_frontier_cells);
+							break;
+						case 'open_start':
+							remove_outbound_wall(action.x, action.y, action.dir);
+							break;
+						case 'open_end':
+							remove_current();
+							remove_outbound_wall(action.x, action.y, action.dir);
+							break;
+					}
+
+					function remove_outbound_wall(x,y,dir) {
+						if (x!==null && y!==null) {
+							var td = td_at(x,y);
+							td.classList.remove('wall_' + dir);
+						}
+					}
+
+					function remove_inbound_wall(x,y,dir) {
+						remove_outbound_wall(x,y,reverse_dirs[dir]);
+					}
+
+					function remove_both_walls(x,y,dir) {
+						remove_outbound_wall(action.x, action.y, action.dir);
+						remove_inbound_wall(action.x+deltax[action.dir], action.y+deltay[action.dir], action.dir);
+					}
+
+					function remove_current() {
+						if (last_x!==null && last_y!==null) {
+							var last_td = td_at(last_x, last_y);
+							last_td.classList.remove('current');
+							last_x = null;
+							last_y = null;
+						}
+					}
+
+					function update_current(x,y) {
+						remove_current();
+
+						last_x=x;
+						last_y=y;
+						var td = td_at(x,y);
+						td.classList.add('current');
+						td.classList.add('in');
+						td.classList.remove('frontier');
+						td.classList.remove('out');
+					}
+
+					function add_frontier_cells(xys) {
+						for (var xy of xys) {
+							var td = td_at(xy[0], xy[1]);
+							td.classList.add('frontier');
+						}
+					}
+				}
+			}
+
+			add_body_onload(init);
+			//]]>
+		</script>
+	</head>
+
+	<body>
+		<div id="wrap">
+			<table id="maze" class="maze" cellspacing="0">
+			</table>
+		</div>
+	</body>
+
+</html>
