@@ -1,6 +1,8 @@
 These are maze generators written in JavaScript.  This includes three
 different algorithms: standard recursive, drunk walk, and drunk walk
-walls.
+walls.  The new jsmaze5 series has a more modern codebase and includes
+a few programs that demostrate the maze building process by allowing
+the user to advance step by step with the space bar.
 
 There is a fourth program (jsmaze4.html) which is a generalized maze
 generator and can be used to make mazes with cells of any shape.  It is
