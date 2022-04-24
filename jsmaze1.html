@@ -55,7 +55,7 @@
 						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
 						// If a name is followed by [], then we'll create an array of
 						// values.  This is good for a multiple-select box
-						if (pname.indexOf('[]')==pname.length-2) {
+						if (pname.match(/\[\]$/)) {
 							pname=pname.slice(0,-2);
 							if (!args[pname]) args[pname]=new Array();
 							args[pname].push(pvalue);
