@@ -2391,6 +2391,7 @@
 
 				do {
 					points.push(current_cell.center());
+					points.push(current_cell.entry_wall.center());
 					current_cell = current_cell.entry_wall.neighbor(current_cell);
 				} while (current_cell != start_cell)
 
