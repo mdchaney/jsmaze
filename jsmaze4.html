@@ -25,6 +25,15 @@
 			svg line.wall { stroke: white; stroke-width: 1; }
 			svg line.wall.open { opacity: 0.0; }
 
+			svg line.edge { stroke: #fff; stroke-width: 1; opacity: 0.0; z-index: 1; }
+			svg line.edge.open { stroke-width: 2; }
+			svg line.edge.closed { stroke-width: 1; stroke-dasharray: 4 1; }
+
+			svg.plain line.edge { stroke: #0800ff; }
+			svg.plain line.closed { stroke: #0800ff; }
+
+			svg circle.cell-center { stroke: #ff0008; stroke-width: 1; opacity: 0.0; z-index: 2; }
+
 			svg.plain { background: white; }
 			svg.plain line.wall { stroke: black; }
 			svg.plain polygon.depth-map { fill: white; stroke: white; }
@@ -43,12 +52,17 @@
 
 			svg.show-sets-5 line.wall.open { opacity: 1.0; }
 
+			svg.show-sets-6 line.wall { opacity: 0.05; }
+			svg.show-sets-6 line.edge { opacity: 1.0; }
+			svg.show-sets-6 line.edge.closed { opacity: 0.33; }
+			svg.show-sets-6 circle.cell-center { opacity: 1.0; }
+
 			svg.no-depth polygon.depth-map { opacity: 0.0; }
 			svg.no-depth rect#bg { fill: blue; }
 			svg.plain rect#bg { fill: white; background: white; }
 
 			svg polyline#solution { fill: none; stroke-width: 2; }
-			svg polyline#solution { stroke: #ff0; }
+			svg polyline#solution { stroke: #ff0; z-index: 5; }
 
 			svg.plain polyline#solution { stroke: #f0f; }
 
@@ -2339,11 +2353,35 @@
 					c.setAttribute("cx", center.x * xmult + xmult);
 					c.setAttribute("cy", center.y * ymult + ymult);
 					c.setAttribute("r", 2);
-					c.setAttribute("stroke", "#ff0008");
-					c.setAttribute("stroke-width", "1");
-					c.setAttribute("class", "cell-center");
+					c.classList.add('cell-center');
 					svg.appendChild(c);
 				}
+			}
+
+			function show_edges(walls, xsize, ysize, svg) {
+				var xmult = xmult_for(xsize, svg);
+				var ymult = ymult_for(ysize, svg);
+				for (var x=0 ; x < walls.length ; x++) {
+					var wall = walls[x];
+					// The ends will be the center of each cell
+					if (wall.cells[0] && wall.cells[1]) {
+						var center1 = wall.cells[0].center();
+						var center2 = wall.cells[1].center();
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+						l.setAttribute("x1", center1.x * xmult + xmult);
+						l.setAttribute("y1", center1.y * ymult + ymult);
+						l.setAttribute("x2", center2.x * xmult + xmult);
+						l.setAttribute("y2", center2.y * ymult + ymult);
+						l.classList.add('edge');
+						l.classList.add(wall.is_open() ? 'open' : 'closed');
+						svg.appendChild(l);
+					}
+				}
+			}
+
+			function draw_maze_graph(cells, walls, xsize, ysize, svg) {
+				show_edges(walls, xsize, ysize, svg);
+				show_cell_centers(cells, xsize, ysize, svg);
 			}
 
 			// This code is useful for debugging - it shows a red dot over
@@ -2453,8 +2491,8 @@
 				draw_gradient_bg(maze.end_depth, maze.max_depth, svg);
 				draw_cell_depths(maze.cells, maze.xsize, maze.ysize, maze.max_depth, svg);
 				draw_walls(maze.walls, maze.xsize, maze.ysize, svg);
+				draw_maze_graph(maze.cells, maze.walls, maze.xsize, maze.ysize, svg);
 				show_maze_solution(maze, maze.xsize, maze.ysize, svg);
-				//show_cell_centers(maze.cells, maze.xsize, maze.ysize, svg);
 				//show_start_and_end_points(maze, maze.xsize, maze.ysize, svg);
 				set_svg_classes();
 			}
@@ -2553,13 +2591,14 @@
 				// 3 - set 0 is invisible
 				// 4 - set 1 is invisible
 				// 5 - all walls visible, including open
+				// 6 - maze as a graph
 
 				set_0_state = set_0_state + 1;
-				if (set_0_state > 5) set_0_state = 0;
+				if (set_0_state > 6) set_0_state = 0;
 
 				var svg = document.querySelector('div#svg-container svg');
 
-				for (var k=0; k<=5; k++) {
+				for (var k=0; k<=6; k++) {
 					if (set_0_state == k) {
 						svg.classList.add("show-sets-" + k);
 					} else {
