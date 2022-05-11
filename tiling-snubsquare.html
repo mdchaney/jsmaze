@@ -1,0 +1,368 @@
+<?xml-stylesheet href="#maze-style" type="text/css"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<title>Maze</title>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<style type="text/css" id="maze-style">
+			html { width: 100vw; height: 100vh; }
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			body { width: 100vw; height: 100vh; background: #ddd; }
+			div#wrap { width: 100vw; height: 100vh; margin: auto auto; }
+			div#svg-container { width: calc(100vw - 40px); height: calc(100vh - 50px - 40px); background: #fff; position: relative; padding: 20px; }
+			div#form { width: 100vw; min-height: 50px; position: relative; }
+			h1 { display: inline-block; margin: 0; margin-right: 2rem; }
+			input[type="range"] { width: 50vw; }
+			svg { width: 100%; height: 100%; }
+			svg circle.point { stroke: red; stroke-width: 1; fill: red; }
+			svg line { stroke: blue; stroke-width: 1; }
+		</style>
+		<script type="text/javascript">
+			// <![CDATA[
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.match(/\[\]$/)) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			// Easily add functions to run at load time
+			function add_body_onload(func) {
+				var old_body_onload=window.onload;
+				window.onload=function() {
+					if (old_body_onload) { old_body_onload(); }
+					func();
+				}
+			}
+
+			class Point {
+				constructor(x, y) {
+					this.x = x;
+					this.y = y;
+				}
+			}
+
+			// Clear an existing svg element
+			function destroy_svg_element(div_id) {
+				var container_div = document.getElementById(div_id);
+				var svgs = container_div.getElementsByTagName('svg');
+				for (var i=0 ; i<svgs.length ; i++) {
+					container_div.removeChild(svgs[i]);
+				}
+			}
+
+			// Creates an svg element inside a container div
+			function create_svg_element(div_id) {
+				var container_div = document.getElementById(div_id);
+				var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+				svg.setAttribute("version", "1.2");
+				svg.setAttribute("baseProfile", "tiny");
+				svg.setAttribute("width", "100%");
+				svg.setAttribute("height", "100%");
+				//svg.setAttribute("viewBox", "0.0 0.0 1.0 1.0");
+				var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+				svg.appendChild(style);
+				container_div.appendChild(svg);
+				return svg;
+			}
+
+			// Get the svg
+			function find_svg(div_id) {
+				var container_div = document.getElementById(div_id);
+				return container_div.getElementsByTagName('svg')[0];
+			}
+
+			// Find a reference to the svg's stylesheet
+			function svg_find_stylesheet(svg) {
+				return(svg.getElementsByTagName('style')[0]);
+			}
+
+			// Get the svg's width.  The issue here is that on Firefox the
+			// svg's offsetWidth is undefined, so I need to instead get the
+			// parent's offsetWidth.
+			function get_svg_width(svg) {
+				return svg.width.baseVal.value;
+			}
+
+			// Get the height of the svg.
+			function get_svg_height(svg) {
+				return svg.height.baseVal.value;
+			}
+
+			// Given the number of cells and svg, compute a width for
+			// a single cell.
+			function xmult_for(xsize, svg) {
+				return get_svg_width(svg) / (xsize + 2);
+			}
+
+			// Given the number of cells and svg, compute a height for
+			// a single cell.
+			function ymult_for(ysize, svg) {
+				return get_svg_height(svg) / (ysize + 2);
+			}
+
+			function init() {
+				var svg = document.getElementById('mysvg');
+
+				var svg_height = get_svg_height(svg);
+				var svg_width = get_svg_width(svg);
+
+				var args=get_args();
+
+				// ysize will be calculated
+				var xsize = parseInt(args['xsize']);
+				if (!xsize) xsize = 21;
+
+				// xsize and ysize have to be odd
+				xsize |= 1;
+
+				var ysize = Math.floor(xsize * svg_height / svg_width);
+				if (!(ysize & 1)) ysize -= 1;
+
+				// The plan here is to make a square in every other space starting
+				// in the first space.  The corners of those squares are the only
+				// corners that matter.  Everything else is attached to them.
+
+				// To simplify, every square and triangle is connected to a point.
+				// To simplify further, every line is connected to a point.  Those
+				// points rotate up to 15 degrees around the center of the squares
+				// mentioned above.
+
+				var x,y;
+				var points = new Array(xsize+1);
+				for (x=0 ; x<=xsize; x++) {
+					points[x] = new Array(ysize+1);
+					for (y=0; y<=ysize; y++) {
+						points[x][y] = new Point(x,y);
+					}
+				}
+
+				// spacing tells how far apart the points are.  We'll save
+				// 5% at each side.
+				var spacing = (svg_width * 0.90) / xsize;
+				var xoffset = svg_width * 0.05;
+				var yoffset = svg_height * 0.05;
+
+				function svg_position(point) {
+					return new Point(point.x * spacing + xoffset, point.y * spacing + yoffset);
+				}
+
+				// Note that the "home" position is 45 degrees.  Angle is in
+				// degrees.
+				function rotational_offset(angle) {
+					var radius = spacing / 2.0;
+					var home_angle = 45.0 * Math.PI / 180.0;
+					var home_x = Math.cos(home_angle) * radius;
+					var home_y = Math.sin(home_angle) * radius;
+					var new_angle = (45.0 - angle) * Math.PI / 180.0;
+					var new_x = Math.cos(new_angle) * radius;
+					var new_y = Math.sin(new_angle) * radius;
+					return new Point(new_x - home_x, home_y - new_y);
+				}
+
+				// even, even is upper left, odd, even is upper right,
+				// even, odd is lower left, and odd, odd is lower right
+				function get_point_position(point) {
+					if (point.x & 1) {
+						if (point.y & 1) {
+							return 'lower right';
+						} else {
+							return 'upper right';
+						}
+					} else {
+						if (point.y & 1) {
+							return 'lower left';
+						} else {
+							return 'upper left';
+						}
+					}
+				}
+
+				function apply_offset(offset, point) {
+					var point_position = get_point_position(point);
+					switch (point_position) {
+						case 'lower right':
+							return new Point(-offset.y, offset.x);
+							break;
+						case 'upper right':
+							return new Point(offset.x, offset.y);
+							break;
+						case 'lower left':
+							return new Point(-offset.x, -offset.y);
+							break;
+						case 'upper left':
+							return new Point(offset.y, -offset.x);
+							break;
+					}
+				}
+
+				var offset = rotational_offset(0.0);
+
+				// Set up the horizontal lines
+				var lines = [];
+				for (y=0 ; y<=ysize; y++) {
+					for (x=0 ; x<xsize; x++) {
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+						var positioned_offset = apply_offset(offset, new Point(x, y));
+						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
+						positioned_offset = apply_offset(offset, new Point(x+1, y));
+						l.setAttribute("x2", (x + 1) * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y2", y * spacing + yoffset + positioned_offset.y);
+						l.dataset.x1 = x;
+						l.dataset.y1 = y;
+						l.dataset.x2 = x + 1;
+						l.dataset.y2 = y;
+						svg.appendChild(l);
+						lines.push(l);
+					}
+				}
+
+				// vertical lines
+				for (x=0 ; x<=xsize; x++) {
+					for (y=0 ; y<ysize; y++) {
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+						var positioned_offset = apply_offset(offset, new Point(x, y));
+						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
+						positioned_offset = apply_offset(offset, new Point(x, y+1));
+						l.setAttribute("x2", x * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y2", (y + 1) * spacing + yoffset + positioned_offset.y);
+						l.dataset.x1 = x;
+						l.dataset.y1 = y;
+						l.dataset.x2 = x;
+						l.dataset.y2 = y + 1;
+						svg.appendChild(l);
+						lines.push(l);
+					}
+				}
+
+				// vertical lines
+				for (x=1 ; x<xsize; x+= 2) {
+					for (y=0 ; y<ysize; y+= 2) {
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+						var positioned_offset = apply_offset(offset, new Point(x, y));
+						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
+						positioned_offset = apply_offset(offset, new Point(x+1, y+1));
+						l.setAttribute("x2", (x + 1) * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y2", (y + 1) * spacing + yoffset + positioned_offset.y);
+						l.dataset.x1 = x;
+						l.dataset.y1 = y;
+						l.dataset.x2 = x + 1;
+						l.dataset.y2 = y + 1;
+						svg.appendChild(l);
+						lines.push(l);
+					}
+				}
+
+				for (x=1 ; x<=xsize; x+= 2) {
+					for (y=1 ; y<ysize; y+= 2) {
+						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+						var positioned_offset = apply_offset(offset, new Point(x, y));
+						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
+						positioned_offset = apply_offset(offset, new Point(x-1, y+1));
+						l.setAttribute("x2", (x - 1) * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y2", (y + 1) * spacing + yoffset + positioned_offset.y);
+						l.dataset.x1 = x;
+						l.dataset.y1 = y;
+						l.dataset.x2 = x - 1;
+						l.dataset.y2 = y + 1;
+						svg.appendChild(l);
+						lines.push(l);
+					}
+				}
+
+				// Set up vertices
+				for (x=0 ; x<=xsize; x++) {
+					points[x] = new Array(ysize+1);
+					for (y=0; y<=ysize; y++) {
+						var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+						var positioned_offset = apply_offset(offset, new Point(x, y));
+						c.setAttribute("cx", x * spacing + xoffset + positioned_offset.x);
+						c.setAttribute("cy", y * spacing + yoffset + positioned_offset.y);
+						c.setAttribute("r", 2);
+						c.classList.add('point');
+						c.classList.add('p' + x + 'x' + y);
+						c.dataset.x = x;
+						c.dataset.y = y;
+						svg.appendChild(c);
+						points[x][y] = c;
+					}
+				}
+
+				var ranger = document.getElementById('ranger');
+				ranger.addEventListener('input', function(ev) {
+					var offset = rotational_offset(parseFloat(ranger.value));
+					for (x=0 ; x<=xsize; x++) {
+						for (y=0; y<=ysize; y++) {
+							var point = points[x][y];
+							var positioned_offset = apply_offset(offset, new Point(point.dataset.x, point.dataset.y));
+							point.setAttribute("cx", point.dataset.x * spacing + xoffset + positioned_offset.x);
+							point.setAttribute("cy", point.dataset.y * spacing + yoffset + positioned_offset.y);
+						}
+					}
+					for (var l of lines) {
+						var positioned_offset = apply_offset(offset, new Point(l.dataset.x1, l.dataset.y1));
+						l.setAttribute("x1", l.dataset.x1 * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y1", l.dataset.y1 * spacing + yoffset + positioned_offset.y);
+						positioned_offset = apply_offset(offset, new Point(l.dataset.x2, l.dataset.y2));
+						l.setAttribute("x2", l.dataset.x2 * spacing + xoffset + positioned_offset.x);
+						l.setAttribute("y2", l.dataset.y2 * spacing + yoffset + positioned_offset.y);
+					}
+				});
+			}
+
+			//add_body_onload(init);
+			setTimeout(init,0);
+			//]]>
+		</script>
+	</head>
+	<body>
+		<div id="wrap">
+			<div id="form">
+				<h1>Snubsquare Tiling</h1>
+				<input type="range" id="ranger" min="0.0" max="15.0" step="0.01" value="0.0" />
+			</div>
+			<div id="svg-container">
+				<svg id="mysvg" version="1.2" xmlns="http://www.w3.org/2000/svg"></svg>
+			</div>
+		</div>
+	</body>
+</html>
