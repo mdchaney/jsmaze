@@ -164,13 +164,6 @@
 				// mentioned above.
 
 				var x,y;
-				var points = new Array(xsize+1);
-				for (x=0 ; x<=xsize; x++) {
-					points[x] = new Array(ysize+1);
-					for (y=0; y<=ysize; y++) {
-						points[x][y] = new Point(x,y);
-					}
-				}
 
 				// spacing tells how far apart the points are.  We'll save
 				// 5% at each side.
@@ -184,11 +177,12 @@
 
 				// Note that the "home" position is 45 degrees.  Angle is in
 				// degrees.
+				var radius = spacing / 2.0;
+				var home_angle = 45.0 * Math.PI / 180.0;
+				var home_x = Math.cos(home_angle) * radius;
+				var home_y = Math.sin(home_angle) * radius;
+
 				function rotational_offset(angle) {
-					var radius = spacing / 2.0;
-					var home_angle = 45.0 * Math.PI / 180.0;
-					var home_x = Math.cos(home_angle) * radius;
-					var home_y = Math.sin(home_angle) * radius;
 					var new_angle = (45.0 - angle) * Math.PI / 180.0;
 					var new_x = Math.cos(new_angle) * radius;
 					var new_y = Math.sin(new_angle) * radius;
@@ -231,19 +225,30 @@
 					}
 				}
 
-				var offset = rotational_offset(0.0);
+				function get_positional_points_for(angle) {
+					var offset = rotational_offset(angle);
+					var positional_points = new Array(xsize+1);
+					for (x=0 ; x<=xsize; x++) {
+						positional_points[x] = new Array(ysize+1);
+						for (y=0 ; y<=ysize; y++) {
+							var positioned_offset = apply_offset(offset, new Point(x, y));
+							positional_points[x][y] = new Point(x * spacing + xoffset + positioned_offset.x, y * spacing + yoffset + positioned_offset.y);
+						}
+					}
+					return positional_points;
+				}
+
+				var zero_positional_points = get_positional_points_for(0.0);
 
 				// Set up the horizontal lines
 				var lines = [];
 				for (y=0 ; y<=ysize; y++) {
 					for (x=0 ; x<xsize; x++) {
 						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						var positioned_offset = apply_offset(offset, new Point(x, y));
-						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
-						positioned_offset = apply_offset(offset, new Point(x+1, y));
-						l.setAttribute("x2", (x + 1) * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y2", y * spacing + yoffset + positioned_offset.y);
+						l.setAttribute("x1", zero_positional_points[x][y].x);
+						l.setAttribute("y1", zero_positional_points[x][y].y);
+						l.setAttribute("x2", zero_positional_points[x+1][y].x);
+						l.setAttribute("y2", zero_positional_points[x][y].y);
 						l.dataset.x1 = x;
 						l.dataset.y1 = y;
 						l.dataset.x2 = x + 1;
@@ -257,12 +262,10 @@
 				for (x=0 ; x<=xsize; x++) {
 					for (y=0 ; y<ysize; y++) {
 						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						var positioned_offset = apply_offset(offset, new Point(x, y));
-						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
-						positioned_offset = apply_offset(offset, new Point(x, y+1));
-						l.setAttribute("x2", x * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y2", (y + 1) * spacing + yoffset + positioned_offset.y);
+						l.setAttribute("x1", zero_positional_points[x][y].x);
+						l.setAttribute("y1", zero_positional_points[x][y].y);
+						l.setAttribute("x2", zero_positional_points[x][y].x);
+						l.setAttribute("y2", zero_positional_points[x][y+1].y);
 						l.dataset.x1 = x;
 						l.dataset.y1 = y;
 						l.dataset.x2 = x;
@@ -276,12 +279,10 @@
 				for (x=1 ; x<xsize; x+= 2) {
 					for (y=0 ; y<ysize; y+= 2) {
 						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						var positioned_offset = apply_offset(offset, new Point(x, y));
-						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
-						positioned_offset = apply_offset(offset, new Point(x+1, y+1));
-						l.setAttribute("x2", (x + 1) * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y2", (y + 1) * spacing + yoffset + positioned_offset.y);
+						l.setAttribute("x1", zero_positional_points[x][y].x);
+						l.setAttribute("y1", zero_positional_points[x][y].y);
+						l.setAttribute("x2", zero_positional_points[x+1][y+1].x);
+						l.setAttribute("y2", zero_positional_points[x+1][y+1].y);
 						l.dataset.x1 = x;
 						l.dataset.y1 = y;
 						l.dataset.x2 = x + 1;
@@ -294,12 +295,10 @@
 				for (x=1 ; x<=xsize; x+= 2) {
 					for (y=1 ; y<ysize; y+= 2) {
 						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						var positioned_offset = apply_offset(offset, new Point(x, y));
-						l.setAttribute("x1", x * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y1", y * spacing + yoffset + positioned_offset.y);
-						positioned_offset = apply_offset(offset, new Point(x-1, y+1));
-						l.setAttribute("x2", (x - 1) * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y2", (y + 1) * spacing + yoffset + positioned_offset.y);
+						l.setAttribute("x1", zero_positional_points[x][y].x);
+						l.setAttribute("y1", zero_positional_points[x][y].y);
+						l.setAttribute("x2", zero_positional_points[x-1][y+1].x);
+						l.setAttribute("y2", zero_positional_points[x-1][y+1].y);
 						l.dataset.x1 = x;
 						l.dataset.y1 = y;
 						l.dataset.x2 = x - 1;
@@ -310,41 +309,36 @@
 				}
 
 				// Set up vertices
+				var points = new Array;
 				for (x=0 ; x<=xsize; x++) {
-					points[x] = new Array(ysize+1);
 					for (y=0; y<=ysize; y++) {
 						var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-						var positioned_offset = apply_offset(offset, new Point(x, y));
-						c.setAttribute("cx", x * spacing + xoffset + positioned_offset.x);
-						c.setAttribute("cy", y * spacing + yoffset + positioned_offset.y);
+						c.setAttribute("cx", zero_positional_points[x][y].x);
+						c.setAttribute("cy", zero_positional_points[x][y].y);
 						c.setAttribute("r", 2);
 						c.classList.add('point');
-						c.classList.add('p' + x + 'x' + y);
 						c.dataset.x = x;
 						c.dataset.y = y;
 						svg.appendChild(c);
-						points[x][y] = c;
+						points.push(c);
 					}
 				}
 
 				var ranger = document.getElementById('ranger');
 				ranger.addEventListener('input', function(ev) {
-					var offset = rotational_offset(parseFloat(ranger.value));
-					for (x=0 ; x<=xsize; x++) {
-						for (y=0; y<=ysize; y++) {
-							var point = points[x][y];
-							var positioned_offset = apply_offset(offset, new Point(point.dataset.x, point.dataset.y));
-							point.setAttribute("cx", point.dataset.x * spacing + xoffset + positioned_offset.x);
-							point.setAttribute("cy", point.dataset.y * spacing + yoffset + positioned_offset.y);
-						}
+					var positional_points = get_positional_points_for(parseFloat(ranger.value));
+					for (var p of points) {
+						var positioned_point = positional_points[p.dataset.x][p.dataset.y];
+						p.setAttribute("cx", positioned_point.x);
+						p.setAttribute("cy", positioned_point.y);
 					}
 					for (var l of lines) {
-						var positioned_offset = apply_offset(offset, new Point(l.dataset.x1, l.dataset.y1));
-						l.setAttribute("x1", l.dataset.x1 * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y1", l.dataset.y1 * spacing + yoffset + positioned_offset.y);
-						positioned_offset = apply_offset(offset, new Point(l.dataset.x2, l.dataset.y2));
-						l.setAttribute("x2", l.dataset.x2 * spacing + xoffset + positioned_offset.x);
-						l.setAttribute("y2", l.dataset.y2 * spacing + yoffset + positioned_offset.y);
+						var positioned_point_1 = positional_points[l.dataset.x1][l.dataset.y1];
+						var positioned_point_2 = positional_points[l.dataset.x2][l.dataset.y2];
+						l.setAttribute("x1", positioned_point_1.x);
+						l.setAttribute("y1", positioned_point_1.y);
+						l.setAttribute("x2", positioned_point_2.x);
+						l.setAttribute("y2", positioned_point_2.y);
 					}
 				});
 			}
@@ -358,7 +352,7 @@
 		<div id="wrap">
 			<div id="form">
 				<h1>Snubsquare Tiling</h1>
-				<input type="range" id="ranger" min="0.0" max="15.0" step="0.01" value="0.0" />
+				<input type="range" id="ranger" min="0.0" max="20.0" step="0.01" value="0.0" />
 			</div>
 			<div id="svg-container">
 				<svg id="mysvg" version="1.2" xmlns="http://www.w3.org/2000/svg"></svg>
