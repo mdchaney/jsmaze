@@ -16,8 +16,15 @@
 			h1 { display: inline-block; margin: 0; margin-right: 2rem; }
 			input[type="range"] { width: 50vw; }
 			svg { width: 100%; height: 100%; }
-			svg circle.point { stroke: red; stroke-width: 1; fill: red; }
-			svg line { stroke: blue; stroke-width: 1; }
+			svg circle.snubsquare.point { stroke: red; stroke-width: 1; fill: red; }
+			svg line.snubsquare { stroke: blue; stroke-width: 1; }
+			svg line.cairo { stroke: green; stroke-width: 1; opacity: 0.0; }
+			svg circle.cairo.center { stroke: #aa0; stroke-width: 1; fill: #aa0; opacity: 0.0; }
+			svg polygon.cairo { stroke: #227; stroke-width: 1; opacity: 0.0; }
+			svg polygon.cairo.f1 { fill: #fff; }
+			svg polygon.cairo.f2 { fill: #88f; }
+			svg polygon.cairo.f3 { fill: #55a; }
+			svg polygon.cairo.f4 { fill: #227; }
 		</style>
 		<script type="text/javascript">
 			// <![CDATA[
@@ -71,9 +78,16 @@
 			}
 
 			class Point {
+				x;
+				y;
+
 				constructor(x, y) {
 					this.x = x;
 					this.y = y;
+				}
+
+				toString() {
+					return '' + this.x + ',' + this.y;
 				}
 			}
 
@@ -226,6 +240,7 @@
 				}
 
 				function get_positional_points_for(angle) {
+					if (angle > 15.0) angle = 15.0;
 					var offset = rotational_offset(angle);
 					var positional_points = new Array(xsize+1);
 					for (x=0 ; x<=xsize; x++) {
@@ -238,95 +253,187 @@
 					return positional_points;
 				}
 
-				var zero_positional_points = get_positional_points_for(0.0);
+				function center_of_square(p1, p2, p3, p4) {
+					return new Point((p1.x+p2.x+p3.x+p4.x)/4.0, (p1.y+p2.y+p3.y+p4.y)/4.0);
+				}
 
-				// Set up the horizontal lines
+				function center_of_triangle(p1, p2, p3) {
+					return new Point((p1.x+p2.x+p3.x)/3.0, (p1.y+p2.y+p3.y)/3.0);
+				}
+
+				// Add cairo polys.  Everything is computed multiple times -
+				// this could be made more efficient.  It only runs one time
+				// so I'm not too worried.
+				function add_cairo_polys() {
+					var positional_points = get_positional_points_for(15.0);
+
+					// We'll draw four of these at a time
+					for (x=1 ; x<=xsize-1 ; x+=2) {
+						for (y=1 ; y<=ysize-1 ; y+=2) {
+							// x,y is a square, and the four pentagons will be built
+							// around the center of this square.  This square touches
+							// four other squares at each corner, four triangles that
+							// share a side, and four triangles that share a corner.
+							var this_center = center_of_square(positional_points[x][y], positional_points[x+1][y], positional_points[x+1][y+1], positional_points[x][y+1]);
+							// Now, find all surrounding square centers
+							var upper_left_square_center = center_of_square(positional_points[x-1][y-1], positional_points[x][y-1], positional_points[x][y], positional_points[x-1][y]);
+							var upper_right_square_center = center_of_square(positional_points[x+1][y-1], positional_points[x+2][y-1], positional_points[x+2][y], positional_points[x+1][y]);
+							var lower_right_square_center = center_of_square(positional_points[x+1][y+1], positional_points[x+2][y+1], positional_points[x+2][y+2], positional_points[x+1][y+2]);
+							var lower_left_square_center = center_of_square(positional_points[x-1][y+1], positional_points[x][y+1], positional_points[x][y+2], positional_points[x-1][y+2]);
+							// upper triangles
+							var upper_right_triangle_center = center_of_triangle(positional_points[x+1][y], positional_points[x][y-1], positional_points[x+1][y-1]);
+							var upper_left_triangle_center = center_of_triangle(positional_points[x+1][y], positional_points[x][y-1], positional_points[x][y]);
+							// right triangles
+							var right_upper_triangle_center = center_of_triangle(positional_points[x+1][y+1], positional_points[x+2][y], positional_points[x+1][y]);
+							var right_lower_triangle_center = center_of_triangle(positional_points[x+1][y+1], positional_points[x+2][y], positional_points[x+2][y+1]);
+							// lower triangles
+							var lower_right_triangle_center = center_of_triangle(positional_points[x][y+1], positional_points[x+1][y+2], positional_points[x+1][y+1]);
+							var lower_left_triangle_center = center_of_triangle(positional_points[x][y+1], positional_points[x+1][y+2], positional_points[x][y+2]);
+							// left triangles
+							var left_upper_triangle_center = center_of_triangle(positional_points[x][y], positional_points[x-1][y+1], positional_points[x-1][y]);
+							var left_lower_triangle_center = center_of_triangle(positional_points[x][y], positional_points[x-1][y+1], positional_points[x][y+1]);
+
+							function add_center(p) {
+								var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+								c.setAttribute("cx", p.x);
+								c.setAttribute("cy", p.y);
+								c.setAttribute("r", 2);
+								c.classList.add('cairo');
+								c.classList.add('center');
+								svg.appendChild(c);
+							}
+
+							add_center(this_center);
+							add_center(upper_left_square_center);
+							add_center(upper_right_square_center);
+							add_center(lower_right_square_center);
+							add_center(lower_left_square_center);
+							add_center(upper_right_triangle_center);
+							add_center(upper_left_triangle_center);
+							add_center(right_upper_triangle_center);
+							add_center(right_lower_triangle_center);
+							add_center(lower_right_triangle_center);
+							add_center(lower_left_triangle_center);
+							add_center(left_upper_triangle_center);
+							add_center(left_lower_triangle_center);
+
+							// now, with all the centers I can build the five pentagons
+							function pentagon_path(p1, p2, p3, p4, p5) {
+								return [p1.toString(), p2.toString(), p3.toString(), p4.toString(), p5.toString()].join(' ');
+							}
+
+							function add_polygon(p1, p2, p3, p4, p5, color) {
+								var p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+								p.setAttribute("points", pentagon_path(p1, p2, p3, p4, p5));
+								p.classList.add('cairo');
+								p.classList.add('f' + color);
+								svg.appendChild(p);
+							}
+
+							add_polygon(this_center, lower_right_triangle_center, lower_left_triangle_center, lower_left_square_center, left_lower_triangle_center, 1);
+							add_polygon(this_center, right_upper_triangle_center, right_lower_triangle_center, lower_right_square_center, lower_right_triangle_center, 2);
+							add_polygon(this_center, upper_left_triangle_center, upper_right_triangle_center, upper_right_square_center, right_upper_triangle_center, 3);
+							add_polygon(this_center, left_lower_triangle_center, left_upper_triangle_center, upper_left_square_center, upper_left_triangle_center, 4);
+						}
+					}
+				}
+
 				var lines = [];
-				for (y=0 ; y<=ysize; y++) {
-					for (x=0 ; x<xsize; x++) {
-						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						l.setAttribute("x1", zero_positional_points[x][y].x);
-						l.setAttribute("y1", zero_positional_points[x][y].y);
-						l.setAttribute("x2", zero_positional_points[x+1][y].x);
-						l.setAttribute("y2", zero_positional_points[x][y].y);
-						l.dataset.x1 = x;
-						l.dataset.y1 = y;
-						l.dataset.x2 = x + 1;
-						l.dataset.y2 = y;
-						svg.appendChild(l);
-						lines.push(l);
+				var points = [];
+
+				function add_snubsquare_lines() {
+					var zero_positional_points = get_positional_points_for(0.0);
+
+					// Set up the horizontal lines
+					for (y=0 ; y<=ysize; y++) {
+						for (x=0 ; x<xsize; x++) {
+							var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+							l.setAttribute("x1", zero_positional_points[x][y].x);
+							l.setAttribute("y1", zero_positional_points[x][y].y);
+							l.setAttribute("x2", zero_positional_points[x+1][y].x);
+							l.setAttribute("y2", zero_positional_points[x][y].y);
+							l.classList.add('snubsquare');
+							l.dataset.x1 = x;
+							l.dataset.y1 = y;
+							l.dataset.x2 = x + 1;
+							l.dataset.y2 = y;
+							svg.appendChild(l);
+							lines.push(l);
+						}
+					}
+
+					// vertical lines
+					for (x=0 ; x<=xsize; x++) {
+						for (y=0 ; y<ysize; y++) {
+							var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+							l.setAttribute("x1", zero_positional_points[x][y].x);
+							l.setAttribute("y1", zero_positional_points[x][y].y);
+							l.setAttribute("x2", zero_positional_points[x][y].x);
+							l.setAttribute("y2", zero_positional_points[x][y+1].y);
+							l.classList.add('snubsquare');
+							l.dataset.x1 = x;
+							l.dataset.y1 = y;
+							l.dataset.x2 = x;
+							l.dataset.y2 = y + 1;
+							svg.appendChild(l);
+							lines.push(l);
+						}
+					}
+
+					// vertical lines
+					for (x=1 ; x<xsize; x+= 2) {
+						for (y=0 ; y<ysize; y+= 2) {
+							var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+							l.setAttribute("x1", zero_positional_points[x][y].x);
+							l.setAttribute("y1", zero_positional_points[x][y].y);
+							l.setAttribute("x2", zero_positional_points[x+1][y+1].x);
+							l.setAttribute("y2", zero_positional_points[x+1][y+1].y);
+							l.classList.add('snubsquare');
+							l.dataset.x1 = x;
+							l.dataset.y1 = y;
+							l.dataset.x2 = x + 1;
+							l.dataset.y2 = y + 1;
+							svg.appendChild(l);
+							lines.push(l);
+						}
+					}
+
+					for (x=1 ; x<=xsize; x+= 2) {
+						for (y=1 ; y<ysize; y+= 2) {
+							var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
+							l.setAttribute("x1", zero_positional_points[x][y].x);
+							l.setAttribute("y1", zero_positional_points[x][y].y);
+							l.setAttribute("x2", zero_positional_points[x-1][y+1].x);
+							l.setAttribute("y2", zero_positional_points[x-1][y+1].y);
+							l.classList.add('snubsquare');
+							l.dataset.x1 = x;
+							l.dataset.y1 = y;
+							l.dataset.x2 = x - 1;
+							l.dataset.y2 = y + 1;
+							svg.appendChild(l);
+							lines.push(l);
+						}
+					}
+
+					// Set up vertices
+					for (x=0 ; x<=xsize; x++) {
+						for (y=0; y<=ysize; y++) {
+							var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+							c.setAttribute("cx", zero_positional_points[x][y].x);
+							c.setAttribute("cy", zero_positional_points[x][y].y);
+							c.setAttribute("r", 2);
+							c.classList.add('snubsquare');
+							c.classList.add('point');
+							c.dataset.x = x;
+							c.dataset.y = y;
+							svg.appendChild(c);
+							points.push(c);
+						}
 					}
 				}
 
-				// vertical lines
-				for (x=0 ; x<=xsize; x++) {
-					for (y=0 ; y<ysize; y++) {
-						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						l.setAttribute("x1", zero_positional_points[x][y].x);
-						l.setAttribute("y1", zero_positional_points[x][y].y);
-						l.setAttribute("x2", zero_positional_points[x][y].x);
-						l.setAttribute("y2", zero_positional_points[x][y+1].y);
-						l.dataset.x1 = x;
-						l.dataset.y1 = y;
-						l.dataset.x2 = x;
-						l.dataset.y2 = y + 1;
-						svg.appendChild(l);
-						lines.push(l);
-					}
-				}
-
-				// vertical lines
-				for (x=1 ; x<xsize; x+= 2) {
-					for (y=0 ; y<ysize; y+= 2) {
-						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						l.setAttribute("x1", zero_positional_points[x][y].x);
-						l.setAttribute("y1", zero_positional_points[x][y].y);
-						l.setAttribute("x2", zero_positional_points[x+1][y+1].x);
-						l.setAttribute("y2", zero_positional_points[x+1][y+1].y);
-						l.dataset.x1 = x;
-						l.dataset.y1 = y;
-						l.dataset.x2 = x + 1;
-						l.dataset.y2 = y + 1;
-						svg.appendChild(l);
-						lines.push(l);
-					}
-				}
-
-				for (x=1 ; x<=xsize; x+= 2) {
-					for (y=1 ; y<ysize; y+= 2) {
-						var l = document.createElementNS("http://www.w3.org/2000/svg", "line")
-						l.setAttribute("x1", zero_positional_points[x][y].x);
-						l.setAttribute("y1", zero_positional_points[x][y].y);
-						l.setAttribute("x2", zero_positional_points[x-1][y+1].x);
-						l.setAttribute("y2", zero_positional_points[x-1][y+1].y);
-						l.dataset.x1 = x;
-						l.dataset.y1 = y;
-						l.dataset.x2 = x - 1;
-						l.dataset.y2 = y + 1;
-						svg.appendChild(l);
-						lines.push(l);
-					}
-				}
-
-				// Set up vertices
-				var points = new Array;
-				for (x=0 ; x<=xsize; x++) {
-					for (y=0; y<=ysize; y++) {
-						var c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-						c.setAttribute("cx", zero_positional_points[x][y].x);
-						c.setAttribute("cy", zero_positional_points[x][y].y);
-						c.setAttribute("r", 2);
-						c.classList.add('point');
-						c.dataset.x = x;
-						c.dataset.y = y;
-						svg.appendChild(c);
-						points.push(c);
-					}
-				}
-
-				var ranger = document.getElementById('ranger');
-				ranger.addEventListener('input', function(ev) {
-					var positional_points = get_positional_points_for(parseFloat(ranger.value));
+				function set_position_points(angle) {
+					var positional_points = get_positional_points_for(angle);
 					for (var p of points) {
 						var positioned_point = positional_points[p.dataset.x][p.dataset.y];
 						p.setAttribute("cx", positioned_point.x);
@@ -340,6 +447,47 @@
 						l.setAttribute("x2", positioned_point_2.x);
 						l.setAttribute("y2", positioned_point_2.y);
 					}
+				}
+
+				add_cairo_polys();
+				add_snubsquare_lines();
+
+				function add_opacity_levels_to_stylesheet() {
+					var style_sheet = document.getElementById('maze-style').sheet;
+					var svg_style_sheet_length = style_sheet.cssRules.length;
+					for (var i=0; i<=15 ; i++) {
+						var opacity = i / 15.0;
+						style_sheet.insertRule('svg.o' + i + ' polygon.cairo { opacity: ' + opacity + '; }', svg_style_sheet_length);
+						var snubsquare_opacity = 1.0 - (i / 17.0);
+						style_sheet.insertRule('svg.o' + i + ' .snubsquare { opacity: ' + snubsquare_opacity + '; }', svg_style_sheet_length);
+					}
+				}
+
+				add_opacity_levels_to_stylesheet();
+
+				function set_cairo_opacity(opacity) {
+					for (var x=0; x<=15; x++) { svg.classList.remove('o' + x); }
+					svg.classList.add('o' + opacity);
+				}
+
+				var fifteen_or_over = false;
+
+				var ranger = document.getElementById('ranger');
+				ranger.addEventListener('input', function(ev) {
+					var angle = parseFloat(ranger.value);
+					if (angle <= 15.0) {
+						if (fifteen_or_over) {
+							fifteen_or_over = false;
+							set_cairo_opacity(0.0);
+						}
+						set_position_points(angle);
+					} else if (angle > 15.0) {
+						if (!fifteen_or_over) {
+							fifteen_or_over = true;
+							set_position_points(15.0);
+						}
+						set_cairo_opacity(Math.floor(angle-15.0));
+					}
 				});
 			}
 
@@ -351,8 +499,11 @@
 	<body>
 		<div id="wrap">
 			<div id="form">
-				<h1>Snubsquare Tiling</h1>
-				<input type="range" id="ranger" min="0.0" max="20.0" step="0.01" value="0.0" />
+				<h1>Snubsquare/Cairo Tiling</h1>
+				<input type="range" id="ranger" min="0.0" max="30.0" step="0.01" value="0.0" list="tickmarks" />
+				<datalist id="tickmarks">
+					<option value="15" />
+				</datalist>
 			</div>
 			<div id="svg-container">
 				<svg id="mysvg" version="1.2" xmlns="http://www.w3.org/2000/svg"></svg>
