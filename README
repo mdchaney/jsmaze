@@ -97,6 +97,16 @@ the maze solution is that path that follows the edge between the two
 sets of walls.
 
 
+The history directory includes some old C programs that I wrote in the
+early 1990s to generate mazes.  These are possibly not proper C now but
+can probably be compiled with the correct flags.  They generate mazes
+in four different display formats:
+
+1. asterisks for walls
+2. VT100 line-drawing characters
+3. Tektronix 4014 graphics mode
+4. ReGIS graphics
+
 These are for your amusement or to learn more.  I hope the code is
 clean enough for you to work with if you choose.  Enjoy!
 
