@@ -107,6 +107,11 @@ in four different display formats:
 3. Tektronix 4014 graphics mode
 4. ReGIS graphics
 
+
+The tiling directory has a couple of programs that demostrate how
+penrose tiling patterns are generated, as well as a demo for snubsquare
+and cairo as a dual tiling.
+
 These are for your amusement or to learn more.  I hope the code is
 clean enough for you to work with if you choose.  Enjoy!
 
