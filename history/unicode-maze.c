@@ -6,12 +6,12 @@
 #include <unistd.h>
 #include <stdbool.h>
 
-char deltax[4]={0,1,0,-1};
-char deltay[4]={-1,0,1,0};
+int deltax[4]={0,1,0,-1};
+int deltay[4]={-1,0,1,0};
 
 int opposite_direction[4] = {2,3,0,1};
-char walls[4] = {1,2,4,8};
-char wall_removal_mask[4] = {0b1110, 0b1101, 0b1011, 0b0111};
+int walls[4] = {1,2,4,8};
+int wall_removal_mask[4] = {0b1110, 0b1101, 0b1011, 0b0111};
 
 /* perms array has these indices:
  *   1. direction of entering square
@@ -55,7 +55,7 @@ char *unicode_light_pieces[16] = { " ", "\u2575", "\u2576", "\u2514",
 										"\u2574", "\u2518", "\u2500", "\u2534",
 										"\u2510", "\u2524", "\u252C", "\u253C" };
 
-void show_unicode_maze(char **maze, int xsize, int ysize, bool double_wide) {
+void show_unicode_maze(int **maze, int xsize, int ysize, bool double_wide) {
 	int x, y, char_offset, char_offset2;
 	for (y=0 ; y < ysize-1 ; y++) {
 		for (x=0 ; x < xsize-1 ; x++) {
@@ -75,7 +75,7 @@ void show_unicode_maze(char **maze, int xsize, int ysize, bool double_wide) {
 	}
 }
 
-void show_raw_maze(char **maze, int xsize, int ysize) {
+void show_raw_maze(int **maze, int xsize, int ysize) {
 	int x, y;
 	for (y=0 ; y < ysize ; y++) {
 		for (x=0 ; x < xsize ; x++) {
@@ -85,7 +85,7 @@ void show_raw_maze(char **maze, int xsize, int ysize) {
 	}
 }
 
-void show_raw_maze2(char **maze, int xsize, int ysize) {
+void show_raw_maze2(int **maze, int xsize, int ysize) {
 	int x, y, char_offset;
 	for (y=0 ; y < ysize-1 ; y++) {
 		for (x=0 ; x < xsize-1 ; x++) {
@@ -124,8 +124,11 @@ int get_straightness(float seed) {
 	}
 }
 
-char** init_maze(int xsize, int ysize) {
-	char **maze;
+int** init_maze(int xsize, int ysize) {
+	// Each maze cell requires only 4 bits, but the storage is
+	// negligible and making each number the word size will
+	// speed everything up.
+	int **maze;
 	int x, y;
 
 	maze = malloc(xsize * (sizeof *maze));
@@ -163,19 +166,19 @@ char** init_maze(int xsize, int ysize) {
 	return maze;
 }
 
-void remove_wall(char *cell, int direction) {
+void remove_wall(int *cell, int direction) {
 	*cell &= wall_removal_mask[direction];
 }
 
-void remove_entering_wall(char *cell, int direction) {
+void remove_entering_wall(int *cell, int direction) {
 	remove_wall(cell, opposite_direction[direction]);
 }
 
-bool unvisited(char *cell) {
+bool unvisited(int *cell) {
 	return (*cell == 15) ? true : false;
 }
 
-bool make_maze(char **maze, int x, int y, int depth, int direction) {
+bool make_maze(int **maze, int x, int y, int depth, int direction) {
 	if (unvisited(&maze[x][y])) {
 		// remove the wall we entered from
 		remove_entering_wall(&maze[x][y], direction);
@@ -206,7 +209,7 @@ bool make_maze(char **maze, int x, int y, int depth, int direction) {
 }
 
 int main(int argc, char **argv) {
-	char **maze = init_maze(20, 20);
+	int **maze = init_maze(20, 20);
 	srand(time(0));
 	make_maze(maze, 1, 1, 0, 2);
 	show_unicode_maze(maze, 20, 20, true);
