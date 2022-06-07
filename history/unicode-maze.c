@@ -48,7 +48,7 @@ int max_level_x = -1;
 int max_level_y = -1;
 
 double right_preference=.5;  /* 1 = left first, 0 = right first */
-double straight_preference = -.5;
+double straight_preference = 0.0;
 
 char *unicode_light_pieces[16] = { " ", "\u2575", "\u2576", "\u2514",
 										"\u2577", "\u2502", "\u250C", "\u251C",
@@ -107,21 +107,57 @@ void show_unicode_pieces() {
 	}
 }
 
+// float cutoff1 = 0.3333333 + seed * 0.6666667;
+int get_cutoff1(float seed) {
+	if (seed >= 1.0) {
+		return RAND_MAX;
+	} else {
+		return RAND_MAX / 3 + (((int)(seed * RAND_MAX) / 3) << 1);
+	}
+}
+
+// float cutoff2 = 1.0 - (1.0 - cutoff1) * (.5-seed*.5);
+int get_cutoff2(int cutoff1, float seed) {
+	return RAND_MAX - ((int)((RAND_MAX - cutoff1) * (1.0 - seed)) >> 1);
+}
+
+// Seed is a float between 0 and 1.  At 0, the distribution should be
+// evenly split between 0, 1, and 2.  At 1.0, the entire distribution
+// should be at 0, with 1 and 2 having nothing.  Between 0 and 1 the
+// distribution becomes more weighted toward 0 as the seed approaches 1.
 int get_straightness(float seed) {
-	// float cutoff1 = 0.3333333 + seed * 0.6666667;
-	int cutoff1 = RAND_MAX / 3 + 2 * (int)(seed * RAND_MAX) / 3;
+	int cutoff1 = get_cutoff1(seed);
 	int rnd = rand();
 	if (rnd < cutoff1) {
 		return 0;
 	} else {
-		// float cutoff2 = 1.0 - (1.0 - cutoff1) * (.5-seed*.5);
-		int cutoff2 = RAND_MAX - (RAND_MAX - cutoff1) * ((RAND_MAX >> 1) - ((int)(seed * RAND_MAX) >> 1));
+		int cutoff2 = get_cutoff2(cutoff1, seed);
 		if (rnd < cutoff2) {
 			return 1;
 		} else {
 			return 2;
 		}
 	}
+}
+
+void test_get_straightness() {
+	float seed;;
+	int counts[3];
+	int seed_seed, i, straightness;
+	printf("seed  %10s  %10s  %5d  %5d  %5d\n", "cutoff1", "cutoff2", 0, 1, 2);
+	for (seed_seed=0 ; seed_seed <= 10 ; seed_seed++) {
+		seed = (float)seed_seed / 10.0;
+		counts[0] = 0; counts[1] = 0; counts[2] = 0;
+		for (i=0 ; i < 50000; i++) {
+			straightness = get_straightness(seed);
+			counts[straightness]++;
+		}
+		printf(" %1.1f  %10d  %10d  %5d  %5d  %5d\n", seed,
+						get_cutoff1(seed), get_cutoff2(get_cutoff1(seed), seed),
+						counts[0], counts[1], counts[2]);
+	}
+	printf("\n\nRAND_MAX: %d\n", RAND_MAX);
+	printf("Size of int: %lu\n", sizeof(int));
 }
 
 int** init_maze(int xsize, int ysize) {
@@ -187,7 +223,7 @@ bool make_maze(int **maze, int x, int y, int depth, int direction) {
 		int straightness;
 
 		if (straight_preference < 0) {
-			straightness = get_straightness(straight_preference);
+			straightness = get_straightness(-straight_preference);
 		} else if (straight_preference > 0) {
 			straightness = 2 - get_straightness(straight_preference);
 		} else {
@@ -222,6 +258,7 @@ int main(int argc, char **argv) {
 	make_maze(maze, 1, 1, 0, 2);
 	open_ends(maze, 20, 20);
 	show_unicode_maze(maze, 20, 20, true);
+	//test_get_straightness();
 	//show_raw_maze2(maze, 20, 20);
 	//show_raw_maze(maze, 20, 20);
 	//show_unicode_pieces();
