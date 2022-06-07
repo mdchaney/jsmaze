@@ -208,10 +208,19 @@ bool make_maze(int **maze, int x, int y, int depth, int direction) {
 	}
 }
 
+// ends are 1,0 and xsize-2,ysize-1
+void open_ends(int **maze, int xsize, int ysize) {
+	remove_wall(&maze[1][0], 2);
+	remove_wall(&maze[1][1], 0);
+	remove_wall(&maze[xsize-2][ysize-2], 2);
+	remove_wall(&maze[xsize-2][ysize-1], 0);
+}
+
 int main(int argc, char **argv) {
 	int **maze = init_maze(20, 20);
 	srand(time(0));
 	make_maze(maze, 1, 1, 0, 2);
+	open_ends(maze, 20, 20);
 	show_unicode_maze(maze, 20, 20, true);
 	//show_raw_maze2(maze, 20, 20);
 	//show_raw_maze(maze, 20, 20);
