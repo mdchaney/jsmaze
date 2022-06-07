@@ -207,6 +207,7 @@ bool make_maze(char **maze, int x, int y, int depth, int direction) {
 
 int main(int argc, char **argv) {
 	char **maze = init_maze(20, 20);
+	srand(time(0));
 	make_maze(maze, 1, 1, 0, 2);
 	show_unicode_maze(maze, 20, 20, true);
 	//show_raw_maze2(maze, 20, 20);
