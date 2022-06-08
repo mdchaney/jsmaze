@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <getopt.h>
 
 int deltax[4]={0,1,0,-1};
 int deltay[4]={-1,0,1,0};
@@ -42,13 +43,6 @@ int perms[4][3][2][3]={{{{0,1,3},{0,3,1}},{{1,0,3},{3,0,1}},{{1,3,0},{3,1,0}}},
                         {{{1,2,0},{1,0,2}},{{2,1,0},{0,1,2}},{{2,0,1},{0,2,1}}},
                         {{{2,3,1},{2,1,3}},{{3,2,1},{1,2,3}},{{3,1,2},{1,3,2}}},
                         {{{3,0,2},{3,2,0}},{{0,3,2},{2,3,0}},{{0,2,3},{2,0,3}}}};
-
-int max_level = 0;
-int max_level_x = -1;
-int max_level_y = -1;
-
-double right_preference=.5;  /* 1 = left first, 0 = right first */
-double straight_preference = 0.0;
 
 char *unicode_light_pieces[16] = { " ", "\u2575", "\u2576", "\u2514",
 										"\u2577", "\u2502", "\u250C", "\u251C",
@@ -214,7 +208,7 @@ bool unvisited(int *cell) {
 	return (*cell == 15) ? true : false;
 }
 
-bool make_maze(int **maze, int x, int y, int depth, int direction) {
+bool make_maze(int **maze, int x, int y, float straight_preference, float right_preference, int depth, int direction) {
 	if (unvisited(&maze[x][y])) {
 		// remove the wall we entered from
 		remove_entering_wall(&maze[x][y], direction);
@@ -234,7 +228,7 @@ bool make_maze(int **maze, int x, int y, int depth, int direction) {
 
 		for (int k=0 ; k<3 ; k++) {
 			int new_direction = directions[k];
-			if (make_maze(maze, x + deltax[new_direction], y + deltay[new_direction], depth + 1, new_direction)) {
+			if (make_maze(maze, x + deltax[new_direction], y + deltay[new_direction], straight_preference, right_preference, depth + 1, new_direction)) {
 				remove_wall(&maze[x][y], new_direction);
 			}
 		}
@@ -242,6 +236,11 @@ bool make_maze(int **maze, int x, int y, int depth, int direction) {
 	} else {
 		return false;
 	}
+}
+
+void usage() {
+	fprintf(stderr, "Usage: unicode-maze [--xsize 20] [--ysize 20] [--straightness 0] [--leftright 50]\n");
+	exit(1);
 }
 
 // ends are 1,0 and xsize-2,ysize-1
@@ -252,16 +251,114 @@ void open_ends(int **maze, int xsize, int ysize) {
 	remove_wall(&maze[xsize-2][ysize-1], 0);
 }
 
-int main(int argc, char **argv) {
-	int **maze = init_maze(20, 20);
-	srand(time(0));
-	make_maze(maze, 1, 1, 0, 2);
-	open_ends(maze, 20, 20);
-	show_unicode_maze(maze, 20, 20, true);
-	//test_get_straightness();
-	//show_raw_maze2(maze, 20, 20);
-	//show_raw_maze(maze, 20, 20);
-	//show_unicode_pieces();
+void show_test(int test_number) {
+	int **maze;
+	switch (test_number) {
+		case 1:
+			test_get_straightness();
+			break;
+		case 2:
+			maze = init_maze(20, 20);
+			show_raw_maze2(maze, 20, 20);
+			break;
+		case 3:
+			maze = init_maze(20, 20);
+			show_raw_maze(maze, 20, 20);
+			break;
+		case 4:
+			show_unicode_pieces();
+			break;
+		default:
+			printf("What are you trying to accomplish?\n");
+	}
+	exit(0);
+}
 
-	return 0;
+int main(int argc, char **argv) {
+	int xsize = 20, ysize = 20;
+	int straightness = 50;
+	int lr_preference = 50;
+	static int singlewide = 0;
+
+	int testing = 0;
+
+	int option_index = 0, c = 0;
+
+	static struct option long_options[] = {
+		{ "xsize", required_argument, 0, 'x' },
+		{ "ysize", required_argument, 0, 'y' },
+		{ "straightness", required_argument, 0, 's' },
+		{ "leftright", required_argument, 0, 'l' },
+		{ "singlewide", no_argument, &singlewide, 1 },
+		{ "test", required_argument, 0, 't' },
+		{ NULL, 0, NULL, 0 }
+	};
+
+	while ((c = getopt_long(argc, argv, "", long_options, &option_index)) != -1) {
+		switch(c) {
+			case 'x':
+				if (sscanf(optarg, "%d", &xsize) != 1) {
+					usage();
+				}
+				break;
+			case 'y':
+				if (sscanf(optarg, "%d", &ysize) != 1) {
+					usage();
+				}
+				break;
+			case 's':
+				if (sscanf(optarg, "%d", &straightness) != 1) {
+					usage();
+				}
+				break;
+			case 'l':
+				if (sscanf(optarg, "%d", &lr_preference) != 1) {
+					usage();
+				}
+				break;
+			case 't':
+				if (sscanf(optarg, "%d", &testing) != 1) {
+					usage();
+				}
+				break;
+			case 0:
+				// singlewide option, nothing to do here
+				break;
+			default:
+				usage();
+		}
+	}
+
+	// Move beyond the parsed options
+	argc -= option_index;
+	argv += option_index;
+
+	if (testing > 0) {
+		show_test(testing);
+	} else {
+
+		if (straightness < 0) {
+			straightness = 0;
+		} else if (straightness > 100) {
+			straightness = 100;
+		}
+
+		float straight_preference = (float)straightness / 50.0 - 1.0;
+
+		if (lr_preference < 0) {
+			lr_preference = 0;
+		} else if (lr_preference > 100) {
+			lr_preference = 100;
+		}
+
+		float right_preference = (float)lr_preference / 100.0;
+
+		int **maze = init_maze(xsize, ysize);
+		srand(time(0));
+		make_maze(maze, 1, 1, straight_preference, right_preference, 0, 2);
+		open_ends(maze, xsize, ysize);
+		show_unicode_maze(maze, xsize, ysize, !singlewide);
+
+		return 0;
+	}
 }
