@@ -279,6 +279,7 @@ int main(int argc, char **argv) {
 	int straightness = 50;
 	int lr_preference = 50;
 	static int singlewide = 0;
+	int seed = -1;
 
 	int testing = 0;
 
@@ -289,6 +290,7 @@ int main(int argc, char **argv) {
 		{ "ysize", required_argument, 0, 'y' },
 		{ "straightness", required_argument, 0, 's' },
 		{ "leftright", required_argument, 0, 'l' },
+		{ "seed", required_argument, 0, 'r' },
 		{ "singlewide", no_argument, &singlewide, 1 },
 		{ "test", required_argument, 0, 't' },
 		{ NULL, 0, NULL, 0 }
@@ -313,6 +315,11 @@ int main(int argc, char **argv) {
 				break;
 			case 'l':
 				if (sscanf(optarg, "%d", &lr_preference) != 1) {
+					usage();
+				}
+				break;
+			case 'r':
+				if (sscanf(optarg, "%d", &seed) != 1) {
 					usage();
 				}
 				break;
@@ -353,8 +360,13 @@ int main(int argc, char **argv) {
 
 		float right_preference = (float)lr_preference / 100.0;
 
+		if (seed > -1) {
+			srand(seed);
+		} else {
+			srand(time(0));
+		}
+
 		int **maze = init_maze(xsize, ysize);
-		srand(time(0));
 		make_maze(maze, 1, 1, straight_preference, right_preference, 0, 2);
 		open_ends(maze, xsize, ysize);
 		show_unicode_maze(maze, xsize, ysize, !singlewide);
