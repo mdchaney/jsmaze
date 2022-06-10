@@ -49,7 +49,17 @@ char *unicode_light_pieces[16] = { " ", "\u2575", "\u2576", "\u2514",
 										"\u2574", "\u2518", "\u2500", "\u2534",
 										"\u2510", "\u2524", "\u252C", "\u253C" };
 
-void show_unicode_maze(int **maze, int xsize, int ysize, bool double_wide) {
+char *unicode_heavy_pieces[16] = { " ", "\u2579", "\u257A", "\u2517",
+										"\u257B", "\u2503", "\u250F", "\u2523",
+										"\u2578", "\u251B", "\u2501", "\u253B",
+										"\u2513", "\u252B", "\u2533", "\u254B" };
+
+char **get_unicode_pieces(int set) {
+	return (set == 0) ? unicode_light_pieces : unicode_heavy_pieces;
+}
+
+void show_unicode_maze(int **maze, int xsize, int ysize, int set, bool double_wide) {
+	char **unicode_pieces = get_unicode_pieces(set);
 	int x, y, char_offset, char_offset2;
 	for (y=0 ; y < ysize-1 ; y++) {
 		for (x=0 ; x < xsize-1 ; x++) {
@@ -58,11 +68,11 @@ void show_unicode_maze(int **maze, int xsize, int ysize, bool double_wide) {
 			if (maze[x][y] & 4) char_offset |= 8;
 			if (maze[x+1][y+1] & 1) char_offset |= 2;
 			if (maze[x+1][y+1] & 8) char_offset |= 4;
-			printf("%s", unicode_light_pieces[char_offset]);
+			printf("%s", unicode_pieces[char_offset]);
 			if (double_wide) {
 				char_offset2 = 0;
 				if (char_offset & 2) char_offset2 |= 10;
-				printf("%s", unicode_light_pieces[char_offset2]);
+				printf("%s", unicode_pieces[char_offset2]);
 			}
 		}
 		printf("\n");
@@ -97,7 +107,9 @@ void show_raw_maze2(int **maze, int xsize, int ysize) {
 void show_unicode_pieces() {
 	int i;
 	for (i=0 ; i < 16 ; i++) {
-		printf("%2d  %x  %s\n", i, i, unicode_light_pieces[i]);
+		printf("%2d  %x  %s%s  %s%s\n", i, i,
+					(i&1 ? " " : ""), unicode_light_pieces[i],
+					(i&1 ? " " : ""), unicode_heavy_pieces[i]);
 	}
 }
 
@@ -280,6 +292,7 @@ int main(int argc, char **argv) {
 	int lr_preference = 50;
 	static int singlewide = 0;
 	int seed = -1;
+	static int set = 0;
 
 	int testing = 0;
 
@@ -291,6 +304,8 @@ int main(int argc, char **argv) {
 		{ "straightness", required_argument, 0, 's' },
 		{ "leftright", required_argument, 0, 'l' },
 		{ "seed", required_argument, 0, 'r' },
+		{ "light", no_argument, &set, 0 },
+		{ "heavy", no_argument, &set, 1 },
 		{ "singlewide", no_argument, &singlewide, 1 },
 		{ "test", required_argument, 0, 't' },
 		{ NULL, 0, NULL, 0 }
@@ -369,7 +384,7 @@ int main(int argc, char **argv) {
 		int **maze = init_maze(xsize, ysize);
 		make_maze(maze, 1, 1, straight_preference, right_preference, 0, 2);
 		open_ends(maze, xsize, ysize);
-		show_unicode_maze(maze, xsize, ysize, !singlewide);
+		show_unicode_maze(maze, xsize, ysize, set, !singlewide);
 
 		return 0;
 	}
