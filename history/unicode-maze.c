@@ -251,7 +251,7 @@ bool make_maze(int **maze, int x, int y, float straight_preference, float right_
 }
 
 void usage() {
-	fprintf(stderr, "Usage: unicode-maze [--xsize 20] [--ysize 20] [--straightness 0] [--leftright 50]\n");
+	fprintf(stderr, "Usage: unicode-maze [--xsize 20] [--ysize 20] [--straightness 0] [--leftright 50] [--seed x]\n");
 	exit(1);
 }
 
