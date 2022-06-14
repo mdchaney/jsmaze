@@ -1,0 +1,626 @@
+<!doctype html>
+
+<html lang="en">
+
+	<head>
+		<title>Maze</title>
+		<meta charset="utf-8">
+		<style type="text/css" id="maze-style">
+			body, div, table, tr, th, td { margin: 0; padding: 0; border: 0; }
+			input[type="range"] { width: 90vw; }
+			div#wrap { width: 90vw; height: 90vh; min-height: 90vh; padding: 10px; margin: auto auto; background: white; position: relative; }
+			table.maze { width: 100%; height: 100%; border: none;}
+			table.maze td { border-width: 1px; border-style: none; border-color: black; }
+			table.maze td { padding: 0; font-size: 12px; min-height: 1em; min-width: 1em; background-repeat: no-repeat; background-position: center; background-origin: padding-box; background-clip: padding-box; background-size: 50%;}
+			table.maze td.wall_0 { border-top-style: solid; }
+			table.maze td.wall_1 { border-right-style: solid; }
+			table.maze td.wall_2 { border-bottom-style: solid; }
+			table.maze td.wall_3 { border-left-style: solid; }
+			table.maze td.wall_0.wall_1.wall_2.wall_3 { background: black; }
+			table.maze td.solution { background-color: lightgreen; }
+			table.maze td.no-solution { background-color: #eee; }
+			table.maze td.current { background-color: cyan; }
+			/*
+			table.maze td.backtrack_0 { background-image: url(images/arrow-up.svg); }
+			table.maze td.backtrack_1 { background-image: url(images/arrow-right.svg); }
+			table.maze td.backtrack_2 { background-image: url(images/arrow-down.svg); }
+			table.maze td.backtrack_3 { background-image: url(images/arrow-left.svg); }
+			*/
+			table.maze td.testing { background-image: url(images/question-lg.svg); }
+		</style>
+		<script type="text/javascript">
+			// This function will add an onload handler to the body.  It's fine to
+			// add a bunch of handlers, this keeps track of all of them.
+			function add_body_onload(func) {
+				var old_body_onload=window.onload;
+				window.onload=function() {
+				if (old_body_onload) { old_body_onload(); }
+					func();
+				}
+			}
+
+			// Get query parameters from the url.  This returns an object like this:
+			//	?param            => args['param']=true
+			// ?param=value      => args['param']=value
+			// ?param[]=value    => args['param']=[value,...]
+			function get_args() {
+				var args = new Object();
+
+				var query_string=location.search.slice(1);
+				if (!query_string) return args;
+				var query_pairs = query_string.split('&');
+
+				var pname, pvalue;
+
+				for (var i=0 ; i<query_pairs.length ; i++) {
+					var equal_position=query_pairs[i].indexOf('=');
+					if (equal_position<0) {
+						args[my_uri_decoder(query_pairs[i])]=true;
+					} else {
+						pname=my_uri_decoder(query_pairs[i].slice(0,equal_position));
+						pvalue=my_uri_decoder(query_pairs[i].slice(equal_position+1));
+						// If a name is followed by [], then we'll create an array of
+						// values.  This is good for a multiple-select box
+						if (pname.match(/\[\]$/)) {
+							pname=pname.slice(0,-2);
+							if (!args[pname]) args[pname]=new Array();
+							args[pname].push(pvalue);
+						} else {
+							args[pname]=pvalue;
+						}
+					}
+				}
+
+				return args;
+			}
+
+			function my_uri_decoder(v) {
+				return decodeURIComponent(v.replace(/\+/g,'%20'));
+			}
+
+			var args=get_args();
+
+			// Basically, this array "converts" any number 0-15 to its
+			// binary equivalent as a string, which is useful for the use
+			// with the above stylesheet.
+			var to_bin=['0000', '0001', '0010', '0011', '0100', '0101', '0110', '0111', '1000', '1001', '1010', '1011', '1100', '1101', '1110', '1111'];
+
+			// Dir:     0 1 2 3
+			//          N E S W
+			var deltax=[0,1,0,-1];
+			var deltay=[-1,0,1,0];
+
+			var reverse_dirs=[2,3,0,1];
+
+			// walls are horizontal or vertical
+			var wall_offsets={
+				h: { x: [0,0,0,0], y: [0,0,1,0] },
+				v: { x: [0,1,0,0], y: [0,0,0,0] }
+			};
+			var wall_types=['h','v','h','v'];
+
+			// perms array has these indices:
+			//   1. direction of entering square
+			//   2. a perm #
+			//   3. a direction #
+			//   4. sequence #
+			//
+			//   Note that the perm# is broken down as follows:
+			//      0 - go straight first
+			//      1 - go straight second
+			//      2 - go straight last
+			//
+			//   Direction # is:
+			//      0 - left first
+			//      1 - right first
+			//
+			//   Therefore:
+			//
+			//   	  0,0 - straight,right,left
+			//   	  0,1 - straight,left,right
+			//   	  1,0 - right,straight,left
+			//   	  1,1 - left,straight,right
+			//   	  2,0 - right,left,straight
+			//   	  2,1 - left,right,straight
+
+			var perms = [[[[0,1,3],[0,3,1]],[[1,0,3],[3,0,1]],[[1,3,0],[3,1,0]]],
+                      [[[1,2,0],[1,0,2]],[[2,1,0],[0,1,2]],[[2,0,1],[0,2,1]]],
+                      [[[2,3,1],[2,1,3]],[[3,2,1],[1,2,3]],[[3,1,2],[1,3,2]]],
+                      [[[3,0,2],[3,2,0]],[[0,3,2],[2,3,0]],[[0,2,3],[2,0,3]]]];
+
+			// These are the solver directions to follow right wall
+			var right_solve_directions = [[1,0,3], [2,1,0], [3,2,1], [0,3,2]];
+			// These are the solver directions to follow left wall
+			var left_solve_directions = [[3,0,1], [0,1,2], [1,2,3], [2,3,0]];
+
+			var xsize=parseInt(args['xsize']);
+			var ysize=parseInt(args['ysize']);
+			if (!xsize) xsize=10;
+			if (!ysize) ysize=10;
+
+			// We'll add some empty cells around the outside for bounding
+			xsize += 2;
+			ysize += 2;
+
+			var right_preference=args['r'];
+
+			if (right_preference) {
+				right_preference = parseFloat(right_preference);
+			} else {
+				right_preference = 0.5;
+			}
+
+			if (right_preference<0.0) {
+				right_preference=0.0;
+			} else if (right_preference>1.0) {
+				right_preference=1.0;
+			}
+
+			var straight_preference=args['s'];
+
+			if (straight_preference) {
+				straight_preference = parseFloat(straight_preference);
+			} else {
+				straight_preference = 0.0;
+			}
+
+			if (straight_preference<-1.0) {
+				straight_preference=-1.0;
+			} else if (straight_preference>1.0) {
+				straight_preference=1.0;
+			}
+
+			var show_backtracks=args['b'];
+
+			// For each cell, we need to keep state.  Walls are booleans,
+			// and consist of horizontal walls and vertical walls.  We can
+			// determine which walls belong to a cell using wall_offsets
+			// and wall_types.
+
+			// For each cell position we'll keep the following information:
+			// 1. entry direction
+			// 2. permutation
+			// 3. current sequence
+			// 4. depth
+
+			// Only depth needs to be kept in an array for later use
+
+			var depths = new Array(xsize);
+			var backtracks = new Array(xsize);
+
+			var walls = { h: new Array(xsize), v: new Array(xsize+1) }
+
+			var startx=1;
+			var starty=0;
+			var start_direction=2;
+
+			var endx=xsize-2;
+			var endy=ysize-1;
+			var end_direction=0;
+
+			var maxdepth=0;
+
+			function may_solve(x,y,dir) {
+				return !get_wall(x,y,dir);
+			}
+
+			function* solve_maze(x,y,dir,goalx,goaly) {
+				yield { action: 'solve', x: x, y: y, dir: dir };
+				if (x==goalx && y==goaly) {
+					yield { action: 'solve-done' };
+					return true;
+				} else {
+					for (var new_dir of right_solve_directions[dir]) {
+						if (may_solve(x, y, new_dir)) {
+							var i=x+deltax[new_dir];
+							var j=y+deltay[new_dir];
+							if (yield* solve_maze(x+deltax[new_dir], y+deltay[new_dir], new_dir, goalx, goaly)) {
+								return true;
+							}
+						}
+					}
+					yield { action: 'solve-backtrack', x: x, y: y, dir: dir };
+					return false;
+				}
+			}
+
+			function* make_maze(x,y,depth,dir) {
+
+				yield { action: 'move', x: x, y: y, dir: dir };
+
+				// remove the wall where we entered
+				remove_wall(x,y,reverse_dirs[dir]);
+
+				// record backtracking
+				backtracks[x][y] = reverse_dirs[dir];
+
+				// update max depth
+				if (depth>maxdepth) maxdepth=depth;
+				depths[x][y]=depth;
+
+				var i,j,k,new_dir,straightness;
+
+				var lr=(Math.random()>=right_preference ? 0 : 1);
+
+				// straightness is a number from 0 to 2, with "0" being
+				// straight first, "1" straight second, and "2" straight
+				// last.  straight_preference is between -1 and 1, with
+				// -1 being very straight, 0 being neutral, and 1 being
+				// very curvy.  We'll use the beta function to come up
+				// with some numbers for this.
+				if (straight_preference < 0.0) {
+					straightness=get_straightness(-straight_preference);
+				} else if (straight_preference > 0.0) {
+					straightness=2-get_straightness(straight_preference);
+				} else {
+					straightness=Math.floor(Math.random()*2.999999);
+				}
+
+				for (new_dir of perms[dir][straightness][lr]) {
+					i=x+deltax[new_dir];
+					j=y+deltay[new_dir];
+					// it should always be in bounds, this is a sanity check
+					if (in_bounds(i,j)) {
+						if (unvisited(i,j)) {
+							yield* make_maze(i,j,depth+1,new_dir);
+							yield { action: 'backtrack', x: x, y: y };
+						} else {
+							//yield { action: 'try', x: i, y: j };
+						}
+					}
+				}
+			}
+
+			function in_bounds(x,y) {
+				return (x>=0 && x<xsize && y>=0 && y<ysize);
+			}
+
+			function four_walls(x,y) {
+				var ret = new Array(4);
+				for (var dir=0; dir<4; dir++) {
+					ret[dir] = get_wall(x,y,dir);
+				}
+				return ret;
+			}
+
+			function four_walls_as_integer(x,y) {
+				var ret = 0;
+				var fw_arr = four_walls(x,y);
+				for (var dir=0; dir<4; dir++) {
+					if (fw_arr[dir]) ret |= 1<<dir;
+				}
+				return ret;
+			}
+
+			function unvisited(x,y) {
+				return four_walls(x,y).every(t => t);
+			}
+
+			function get_wall(x,y,dir) {
+				wall_type = wall_types[dir];
+				return walls[wall_type][x+wall_offsets[wall_type]['x'][dir]][y+wall_offsets[wall_type]['y'][dir]];
+			}
+
+			function set_wall(x,y,dir,val) {
+				wall_type = wall_types[dir];
+				walls[wall_type][x+wall_offsets[wall_type]['x'][dir]][y+wall_offsets[wall_type]['y'][dir]] = val;
+			}
+
+			function remove_wall(x,y,dir) {
+				set_wall(x,y,dir,false);
+			}
+
+			// seed is 0 -> 1.  At 0, we have a regular distribution and at 1
+			// we have a distribution completely weighted toward 0.  Simply, at
+			// 0 the cutoffs are at 1/3 and 2/3, since 2/3 is half way between
+			// 1/3 and 1.  At .5, the first cutoff is 2/3 and the second is
+			// 11/12.
+			// cutoff2 is .5 of remaining space when seed is 0 and 0 of
+			// remaining space when seed is 1.
+			function get_straightness(seed) {
+				var cutoff1 = .333333333 + seed*.666666666
+				var rnd = Math.random();
+				if (rnd<cutoff1) {
+					return 0;
+				} else {
+					var cutoff2 = 1.0 - (1.0 - cutoff1) * (.5-seed*.5);
+					if (rnd<cutoff2) {
+						return 1;
+					} else {
+						return 2;
+					}
+				}
+			}
+
+			function test_get_straightness() {
+				var counts = new Array(11);
+				for (var seed=0; seed<=10; seed++) {
+					these_counts = [0,0,0];
+					for (var x=0; x<50000; x++) {
+						var straightness = get_straightness(seed/10.0);
+						these_counts[straightness] += 1;
+					}
+					counts[Math.floor(seed)] = these_counts;
+				}
+
+				console.log(counts);
+			}
+
+			function create_table_cells(table, xsize, ysize) {
+				for (var y=0; y<ysize; y++) {
+					var tr = document.createElement('tr');
+					tr.id = 'row_' + y;
+					tr.className = 'row_' + y;
+					for (var x=0; x<xsize; x++) {
+						var td = document.createElement('td');
+						td.id = 'cell_' + x + '_' + y;
+						td.className = 'row_' + y + ' col_' + x;
+						for (var dir=0; dir<4; dir++) {
+							if (get_wall(x,y,dir)) {
+								td.classList.add('wall_' + dir);
+							}
+						}
+						tr.appendChild(td);
+					}
+					table.appendChild(tr);
+				}
+			}
+
+			function td_at(x,y) {
+				return document.getElementById('cell_' + x + '_' + y);
+			}
+
+			function display_maze(table, xsize, ysize, walls, backtracks, depths) {
+				for (var x=0; x<xsize; x++) {
+					for (var y=0; y<ysize; y++) {
+						var td = td_at(x,y);
+						for (var dir=0; dir<4; dir++) {
+							if (get_wall(x,y,dir)) {
+								td.classList.add('wall_' + dir);
+							}
+						}
+						if (show_backtracks) {
+							td.classList.add('backtrack_' + backtracks[x][y]);
+						}
+					}
+				}
+			}
+
+			function clear_walls() {
+				// Create the horizontal walls, all set to "true" except
+				// first and last
+				walls = { 'h': false, 'v': false };
+				walls['h'] = new Array(ysize+1);
+				for (var x=0 ; x<xsize ; x++) {
+					walls['h'][x] = new Array(ysize+1).fill(false);
+				}
+
+				// Create the vertical walls, all set to "true" except first
+				walls['v'] = new Array(xsize+1);
+				// and last
+				for (var x=0 ; x<xsize+1 ; x++) {
+					walls['v'][x] = new Array(ysize).fill(false);
+				}
+			}
+
+			function set_initial_walls() {
+				// horizontal walls
+				for (var x=1 ; x<xsize-1 ; x++) {
+					for (var y=1 ; y<ysize ; y++) {
+						walls['h'][x][y] = true;
+					}
+				}
+
+				// vertical walls
+				for (var x=1 ; x<xsize ; x++) {
+					for (var y=1 ; y<ysize-1 ; y++) {
+						walls['v'][x][y] = true;
+					}
+				}
+			}
+
+			function* make_and_solve_maze_generator() {
+				yield* make_maze(startx, starty, 0, start_direction);
+				yield {action: 'open_end', x: endx, y: endy, dir: end_direction};
+				yield {action: 'solve', x: endx, y: endy, dir: end_direction};
+				yield* solve_maze(endx+deltax[end_direction], endy+deltay[end_direction], end_direction, startx, starty);
+			}
+
+			function init() {
+				maxdepth=0;
+
+				for (var x=0 ; x<xsize ; x++) {
+					depths[x] = new Array(ysize);
+				}
+
+				for (var x=0 ; x<xsize ; x++) {
+					backtracks[x] = new Array(ysize);
+				}
+
+				clear_walls();
+				set_initial_walls();
+
+				var table = document.getElementById('maze');
+				create_table_cells(table, xsize, ysize);
+
+				var last_x=null, last_y=null;
+				var last_try_x=null, last_try_y=null;
+
+				var completely_done = false;
+
+				var maze_generator = make_and_solve_maze_generator();
+
+				var interval_id = null;
+				var delay = 100.0;
+
+				function stop_interval() {
+					if (interval_id !== null) {
+						clearInterval(interval_id);
+						interval_id = null;
+					}
+				}
+
+				function change_interval(delay) {
+					stop_interval();
+					interval_id = setInterval(do_next, delay);
+				}
+
+				function do_next() {
+					var next_item = maze_generator.next();
+					if (next_item.done) {
+						if (interval_id) {
+							stop_interval();
+						}
+					} else {
+						var action = next_item.value;
+						handle_action(action);
+					}
+				}
+
+				function handle_action(action) {
+					//console.log(action);
+					switch(action.action) {
+						case 'move':
+							remove_outbound_wall(last_x, last_y, action.dir);
+							remove_inbound_wall(action.x, action.y, action.dir);
+							set_backtrack(action.x, action.y, action.dir);
+							update_current(action.x, action.y);
+							break;
+						case 'try':
+							update_try(action.x, action.y);
+							break;
+						case 'backtrack':
+							update_current(action.x, action.y);
+							break;
+						case 'open_end':
+							remove_try();
+							remove_current();
+							remove_outbound_wall(action.x, action.y, action.dir);
+							remove_inbound_wall(action.x+deltax[action.dir], action.y+deltay[action.dir], action.dir);
+							break;
+						case 'solve':
+							set_solution(action.x, action.y);
+							break;
+						case 'solve-done':
+							remove_current();
+							break;
+						case 'solve-backtrack':
+							set_no_solution(action.x, action.y);
+							break;
+					}
+
+					function remove_outbound_wall(x,y,dir) {
+						if (x!==null && y!==null) {
+							var td = td_at(x,y);
+							td.classList.remove('wall_' + dir);
+						}
+					}
+
+					function remove_inbound_wall(x,y,dir) {
+						remove_outbound_wall(x,y,reverse_dirs[dir]);
+					}
+
+					function set_backtrack(x,y,dir) {
+						var td = td_at(x,y);
+						td.classList.add('backtrack_' + reverse_dirs[dir]);
+					}
+
+					function remove_try() {
+						if (last_try_x!==null && last_try_y!==null) {
+							var last_try_td = td_at(last_try_x, last_try_y);
+							last_try_td.classList.remove('testing');
+							last_try_x=null;
+							last_try_y=null;
+						}
+					}
+
+					function update_try(x,y) {
+						remove_try();
+						last_try_x=x;
+						last_try_y=y;
+						var td = td_at(x,y);
+						td.classList.add('testing');
+					}
+
+					function remove_current() {
+						if (last_x!==null && last_y!==null) {
+							var last_td = td_at(last_x, last_y);
+							last_td.classList.remove('current');
+							last_x = null;
+							last_y = null;
+						}
+					}
+
+					function update_current(x,y) {
+						remove_try();
+						remove_current();
+
+						last_x=x;
+						last_y=y;
+						var td = td_at(x,y);
+						td.classList.add('current');
+					}
+
+					function set_solution(x,y) {
+						remove_current();
+
+						last_x=x;
+						last_y=y;
+						var td = td_at(x,y);
+						td.classList.add('current');
+						td.classList.add('solution');
+					}
+
+					function set_no_solution(x,y) {
+						remove_current();
+
+						last_x=x;
+						last_y=y;
+
+						var td = td_at(x,y);
+						td.classList.add('current');
+						td.classList.remove('solution');
+						td.classList.add('no-solution');
+					}
+				}
+
+				var speeder = document.getElementById('speed');
+				speeder.addEventListener('input', function(ev) {
+					var speed = parseFloat(speeder.value);
+					//console.log("Speed: " + speed);
+					if (speed > 0.0) {
+						delay = 1000.0 / speed;
+						change_interval(delay);
+					} else {
+						stop_interval();
+					}
+				});
+			}
+
+			add_body_onload(init);
+		</script>
+	</head>
+
+	<body>
+		<div id="wrap">
+			<p>
+				This is a recursive backtracker demonstration.  
+				The maze is set in a square grid using an HTML table
+				for display.  Parameters are xsize, ysize, l for left/right
+				preference (0 left, 1 right), and s for straightness preference
+				(-1 really straight, 0 normal, 1 really curvy).
+			</p>
+			<input type="range" id="speed" min="0" max="1000.0" step="1" value="0" list="tickmarks">
+			<datalist id="tickmarks">
+				<option value="0" label="0"></option>
+				<option value="250" label="250"></option>
+				<option value="500" label="500"></option>
+				<option value="750" label="750"></option>
+				<option value="1000" label="1000"></option>
+			</datalist>
+			<table id="maze" class="maze" cellspacing="0">
+			</table>
+		</div>
+	</body>
+
+</html>
