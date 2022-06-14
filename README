@@ -3,7 +3,8 @@ different algorithms: standard recursive, drunk walk, and drunk walk
 walls.  The new jsmaze5 series has a more modern codebase.  The
 jsmaze6 series includes a few programs that demostrate the maze
 building process by allowing the user to advance step by step with
-the space bar.
+the space bar.  The jsmaze7 series shows a solution after generating a
+maze, and runs automatically with a speed control.
 
 jsmaze4.html is a generalized maze generator and can be used to make
 mazes with cells of any shape.  It is not necessary for the cells to be
@@ -21,7 +22,7 @@ anything that can tile a plane.  You just have to be able to compute
 every vertex and the line segments between them - basically describe it
 as a graph.
 
-All four accept xsize and ysize parameters as part of the url, i.e.
+All accept xsize and ysize parameters as part of the url, i.e.
 file:///Users/mdchaney/mazes/jsmaze1.html?xsize=100&ysize=75
 
 jsmaze4.html additionally accepts many other parameters:
