@@ -4,7 +4,9 @@ walls.  The new jsmaze5 series has a more modern codebase.  The
 jsmaze6 series includes a few programs that demostrate the maze
 building process by allowing the user to advance step by step with
 the space bar.  The jsmaze7 series shows a solution after generating a
-maze, and runs automatically with a speed control.
+maze, and runs automatically with a speed control.  The jsmaze8 series
+shows a cheap unicursal maze generator, also runs automatically with a
+speed control.
 
 jsmaze4.html is a generalized maze generator and can be used to make
 mazes with cells of any shape.  It is not necessary for the cells to be
