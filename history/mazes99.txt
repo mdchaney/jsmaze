@@ -1,0 +1,4 @@
+The mazes99.dsk is a TI-99 disk image that is usable with js99er.net.
+It includes both TI BASIC and TI assembler code for maze generation.
+The code can be run either through the Editor/Assembler module or the TI
+Extended BASIC module.
