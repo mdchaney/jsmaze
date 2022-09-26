@@ -458,7 +458,7 @@
 					for (var i=0; i<=15 ; i++) {
 						var opacity = i / 15.0;
 						style_sheet.insertRule('svg.o' + i + ' polygon.cairo { opacity: ' + opacity + '; }', svg_style_sheet_length);
-						var snubsquare_opacity = 1.0 - (i / 17.0);
+						var snubsquare_opacity = 1.0 - (i / 15.0);
 						style_sheet.insertRule('svg.o' + i + ' .snubsquare { opacity: ' + snubsquare_opacity + '; }', svg_style_sheet_length);
 					}
 				}
